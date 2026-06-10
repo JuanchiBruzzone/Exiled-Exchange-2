@@ -16,6 +16,25 @@ import { GameLogWatcher } from "./host-files/GameLogWatcher";
 import { HttpProxy } from "./proxy";
 import { installExtension, VUEJS_DEVTOOLS } from "electron-devtools-installer";
 import { FileWriter } from "./host-files/FileWriter";
+import { isWaylandMode, isX11Mode } from "./platform";
+
+app.setName("Exiled Exchange 2");
+if (process.platform === "linux") {
+  const linuxApp = app as typeof app & {
+    setDesktopName?: (desktopName: string) => void;
+  };
+  linuxApp.setDesktopName?.("exiled-exchange-2.desktop");
+}
+
+if (isWaylandMode()) {
+  app.commandLine.appendSwitch("ozone-platform", "wayland");
+  app.commandLine.appendSwitch(
+    "enable-features",
+    "WaylandWindowDecorations,GlobalShortcutsPortal",
+  );
+} else if (isX11Mode()) {
+  app.commandLine.appendSwitch("ozone-platform", "x11");
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.exit();
@@ -119,8 +138,12 @@ let tray: AppTray;
             fileWriter.restart(cfg.libraryAlpha, cfg.libraryOutputPath);
           },
         );
-        uIOhook.start();
-        console.log("uIOhook started");
+        if (isWaylandMode()) {
+          // Native Wayland uses the desktop shortcut portal instead of uIOhook.
+        } else {
+          uIOhook.start();
+          console.log("uIOhook started");
+        }
         const port = await startServer(appUpdater, logger);
         // TODO: move up (currently crashes)
         logger.write(`info ${os.type()} ${os.release} / v${app.getVersion()}`);

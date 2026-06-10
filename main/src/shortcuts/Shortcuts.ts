@@ -9,6 +9,8 @@ import { typeInChat, stashSearch } from "./text-box";
 import { WidgetAreaTracker } from "../windowing/WidgetAreaTracker";
 import { HostClipboard } from "./HostClipboard";
 import { OcrWorker } from "../vision/link-main";
+import { isWaylandMode } from "../platform";
+import { pressWaylandCopyItemText, typeInChatWayland } from "./wayland-input";
 import type { ShortcutAction } from "../../../ipc/types";
 import type { Logger } from "../RemoteLogger";
 import type { OverlayWindow } from "../windowing/OverlayWindow";
@@ -20,11 +22,21 @@ type UiohookKeyT = keyof typeof UiohookKey;
 const UiohookToName = Object.fromEntries(
   Object.entries(UiohookKey).map(([k, v]) => [v, k]),
 );
+const DEDUPE_MS = 100;
+
+interface UiohookShortcut {
+  keycode: number;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+}
 
 export class Shortcuts {
   private actions: ShortcutAction[] = [];
   private stashScroll = false;
   private logKeys = false;
+  private isRegistered = false;
+  private lastActionAt = 0;
   private areaTracker: WidgetAreaTracker;
   private clipboard: HostClipboard;
 
@@ -59,6 +71,8 @@ export class Shortcuts {
     this.clipboard = new HostClipboard(logger);
 
     this.poeWindow.on("active-change", (isActive) => {
+      if (process.platform === "linux") return;
+
       process.nextTick(() => {
         if (isActive === this.poeWindow.isActive) {
           if (isActive) {
@@ -77,9 +91,21 @@ export class Shortcuts {
     });
 
     uIOhook.on("keydown", (e) => {
-      if (!this.logKeys) return;
-      const pressed = eventToString(e);
-      this.logger.write(`debug [Shortcuts] Keydown ${pressed}`);
+      if (this.logKeys) {
+        const pressed = eventToString(e);
+        this.logger.write(`debug [Shortcuts] Keydown ${pressed}`);
+      }
+
+      if (!isWaylandMode() && process.platform !== "linux" && !this.poeWindow.isActive) return;
+
+      if (!isWaylandMode()) {
+        for (const entry of this.actions) {
+          const uiohookShortcut = shortcutToUiohook(entry.shortcut);
+          if (!uiohookShortcut || !matchesShortcut(e, uiohookShortcut)) continue;
+
+          this.runAction(entry);
+        }
+      }
     });
     uIOhook.on("keyup", (e) => {
       if (!this.logKeys) return;
@@ -169,120 +195,165 @@ export class Shortcuts {
         !duplicates.has(action.shortcut) ||
         action.action.type === "toggle-overlay",
     );
+
+    if (isWaylandMode()) {
+      for (const shortcut of getWaylandOverlayAliases()) {
+        if (!this.actions.some((entry) => entry.shortcut === shortcut)) {
+          this.actions.push({
+            shortcut,
+            action: { type: "toggle-overlay" },
+          });
+        }
+      }
+    }
+
+    if (process.platform === "linux") {
+      this.register();
+    }
   }
 
   private register() {
+    this.unregister();
+
     for (const entry of this.actions) {
-      const isOk = globalShortcut.register(
-        shortcutToElectron(entry.shortcut),
-        () => {
-          if (this.logKeys) {
-            this.logger.write(
-              `debug [Shortcuts] Action type: ${entry.action.type}`,
-            );
-          }
-
-          if (entry.keepModKeys) {
-            const nonModKey = entry.shortcut
-              .split(" + ")
-              .filter((key) => !isModKey(key))[0];
-            uIOhook.keyToggle(UiohookKey[nonModKey as UiohookKeyT], "up");
-          } else {
-            entry.shortcut
-              .split(" + ")
-              .reverse()
-              .forEach((key) => {
-                uIOhook.keyToggle(UiohookKey[key as UiohookKeyT], "up");
-              });
-          }
-
-          if (entry.action.type === "toggle-overlay") {
-            this.areaTracker.removeListeners();
-            this.overlay.toggleActiveState();
-          } else if (entry.action.type === "paste-in-chat") {
-            typeInChat(entry.action.text, entry.action.send, this.clipboard);
-          } else if (entry.action.type === "trigger-event") {
-            this.server.sendEventTo("broadcast", {
-              name: "MAIN->CLIENT::widget-action",
-              payload: { target: entry.action.target },
-            });
-          } else if (entry.action.type === "stash-search") {
-            stashSearch(entry.action.text, this.clipboard, this.overlay);
-          } else if (entry.action.type === "copy-item") {
-            const { action } = entry;
-
-            const pressPosition = screen.getCursorScreenPoint();
-
-            this.clipboard
-              .readItemText()
-              .then((clipboard) => {
-                this.areaTracker.removeListeners();
-                this.server.sendEventTo("last-active", {
-                  name: "MAIN->CLIENT::item-text",
-                  payload: {
-                    target: action.target,
-                    clipboard,
-                    position: pressPosition,
-                    focusOverlay: Boolean(action.focusOverlay),
-                  },
-                });
-                if (action.focusOverlay && this.overlay.wasUsedRecently) {
-                  this.overlay.assertOverlayActive();
-                }
-              })
-              .catch(() => {});
-
-            pressKeysToCopyItemText(
-              entry.keepModKeys
-                ? entry.shortcut.split(" + ").filter((key) => isModKey(key))
-                : undefined,
-              this.gameConfig.showModsKey,
-            );
-          } else if (
-            entry.action.type === "ocr-text" &&
-            entry.action.target === "heist-gems"
-          ) {
-            if (process.platform !== "win32") return;
-
-            const { action } = entry;
-            const pressTime = Date.now();
-            const imageData = this.poeWindow.screenshot();
-            this.ocrWorker
-              .findHeistGems({
-                width: this.poeWindow.bounds.width,
-                height: this.poeWindow.bounds.height,
-                data: imageData,
-              })
-              .then((result) => {
-                this.server.sendEventTo("last-active", {
-                  name: "MAIN->CLIENT::ocr-text",
-                  payload: {
-                    target: action.target,
-                    pressTime,
-                    ocrTime: result.elapsed,
-                    paragraphs: result.recognized.map((p) => p.text),
-                  },
-                });
-              })
-              .catch(() => {});
-          }
-        },
-      );
+      const electronShortcut = shortcutToElectron(entry.shortcut);
+      const isOk = globalShortcut.register(electronShortcut, () => {
+        this.runAction(entry);
+      });
 
       if (!isOk) {
-        this.logger.write(
-          `error [Shortcuts] Failed to register a shortcut "${entry.shortcut}". It is already registered by another application.`,
-        );
+        const message = `error [Shortcuts] Failed to register a shortcut "${entry.shortcut}" (${electronShortcut}). It is already registered by another application.`;
+        this.logger.write(message);
+        console.warn(message);
       }
 
       if (entry.action.type === "test-only") {
         globalShortcut.unregister(shortcutToElectron(entry.shortcut));
       }
     }
+
+    this.isRegistered = true;
   }
 
   private unregister() {
+    if (!this.isRegistered) return;
+
     globalShortcut.unregisterAll();
+    this.isRegistered = false;
+  }
+
+  private runAction(entry: ShortcutAction) {
+    const now = Date.now();
+    if (now - this.lastActionAt < DEDUPE_MS) return;
+    this.lastActionAt = now;
+
+    if (this.logKeys) {
+      this.logger.write(`debug [Shortcuts] Action type: ${entry.action.type}`);
+    }
+
+    if (!isWaylandMode() && entry.keepModKeys) {
+      const nonModKey = entry.shortcut
+        .split(" + ")
+        .filter((key) => !isModKey(key))[0];
+      uIOhook.keyToggle(UiohookKey[nonModKey as UiohookKeyT], "up");
+    } else if (!isWaylandMode()) {
+      entry.shortcut
+        .split(" + ")
+        .reverse()
+        .forEach((key) => {
+          uIOhook.keyToggle(UiohookKey[key as UiohookKeyT], "up");
+        });
+    }
+
+    if (entry.action.type === "toggle-overlay") {
+      this.areaTracker.removeListeners();
+      this.overlay.toggleActiveState();
+    } else if (entry.action.type === "paste-in-chat") {
+      if (isWaylandMode()) {
+        typeInChatWayland(entry.action.text, entry.action.send, this.clipboard);
+      } else {
+        typeInChat(entry.action.text, entry.action.send, this.clipboard);
+      }
+    } else if (entry.action.type === "trigger-event") {
+      this.server.sendEventTo("broadcast", {
+        name: "MAIN->CLIENT::widget-action",
+        payload: { target: entry.action.target },
+      });
+    } else if (entry.action.type === "stash-search") {
+      stashSearch(entry.action.text, this.clipboard, this.overlay);
+    } else if (entry.action.type === "copy-item") {
+      const { action } = entry;
+
+      const pressPosition = screen.getCursorScreenPoint();
+
+      this.clipboard
+        .readItemText()
+        .then((clipboard) => {
+          this.areaTracker.removeListeners();
+          this.server.sendEventTo("last-active", {
+            name: "MAIN->CLIENT::item-text",
+            payload: {
+              target: action.target,
+              clipboard,
+              position: pressPosition,
+              focusOverlay: Boolean(action.focusOverlay),
+            },
+          });
+          if (
+            isWaylandMode() ||
+            (action.focusOverlay && this.overlay.wasUsedRecently)
+          ) {
+            this.overlay.assertOverlayActive();
+          }
+        })
+        .catch(() => {});
+
+      if (isWaylandMode()) {
+        pressWaylandCopyItemText(
+          entry.keepModKeys
+            ? entry.shortcut.split(" + ").filter((key) => isModKey(key))
+            : undefined,
+          this.gameConfig.showModsKey,
+        );
+        setTimeout(() => {
+          this.overlay.assertOverlayActive();
+        }, 150);
+      } else {
+        pressKeysToCopyItemText(
+          entry.keepModKeys
+            ? entry.shortcut.split(" + ").filter((key) => isModKey(key))
+            : undefined,
+          this.gameConfig.showModsKey,
+        );
+      }
+    } else if (
+      entry.action.type === "ocr-text" &&
+      entry.action.target === "heist-gems"
+    ) {
+      if (process.platform !== "win32") return;
+
+      const { action } = entry;
+      const pressTime = Date.now();
+      const imageData = this.poeWindow.screenshot();
+      this.ocrWorker
+        .findHeistGems({
+          width: this.poeWindow.bounds.width,
+          height: this.poeWindow.bounds.height,
+          data: imageData,
+        })
+        .then((result) => {
+          this.server.sendEventTo("last-active", {
+            name: "MAIN->CLIENT::ocr-text",
+            payload: {
+              target: action.target,
+              pressTime,
+              ocrTime: result.elapsed,
+              paragraphs: result.recognized.map((p) => p.text),
+            },
+          });
+        })
+        .catch(() => {});
+    }
   }
 }
 
@@ -361,4 +432,50 @@ function shortcutToElectron(shortcut: string) {
     .split(" + ")
     .map((k) => KeyToElectron[k as keyof typeof KeyToElectron])
     .join("+");
+}
+
+function shortcutToUiohook(shortcut: string): UiohookShortcut | null {
+  let keycode: number | undefined;
+  let ctrlKey = false;
+  let altKey = false;
+  let shiftKey = false;
+
+  for (const key of shortcut.split(" + ")) {
+    if (key === "Ctrl") {
+      ctrlKey = true;
+    } else if (key === "Alt") {
+      altKey = true;
+    } else if (key === "Shift") {
+      shiftKey = true;
+    } else {
+      keycode = UiohookKey[key as UiohookKeyT] as number | undefined;
+    }
+  }
+
+  if (!keycode) return null;
+  return { keycode, ctrlKey, altKey, shiftKey };
+}
+
+function matchesShortcut(
+  event: {
+    keycode: number;
+    ctrlKey: boolean;
+    altKey: boolean;
+    shiftKey: boolean;
+  },
+  shortcut: UiohookShortcut,
+) {
+  return (
+    event.keycode === shortcut.keycode &&
+    event.ctrlKey === shortcut.ctrlKey &&
+    event.altKey === shortcut.altKey &&
+    event.shiftKey === shortcut.shiftKey
+  );
+}
+
+function getWaylandOverlayAliases() {
+  return (process.env.EXILED_WAYLAND_OVERLAY_ALIASES || "Ctrl + Alt + P")
+    .split(",")
+    .map((shortcut) => shortcut.trim())
+    .filter(Boolean);
 }

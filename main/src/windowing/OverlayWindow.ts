@@ -1,9 +1,10 @@
 import path from "path";
-import { BrowserWindow, dialog, shell, Menu } from "electron";
+import { BrowserWindow, dialog, shell, Menu, screen } from "electron";
 import {
   OverlayController,
   OVERLAY_WINDOW_OPTS,
 } from "electron-overlay-window";
+import { isWaylandMode } from "../platform";
 import type { ServerEvents } from "../server";
 import type { Logger } from "../RemoteLogger";
 import type { GameWindow } from "./GameWindow";
@@ -25,7 +26,9 @@ export class OverlayWindow {
       this.assertGameActive,
     );
     this.poeWindow.on("active-change", this.handlePoeWindowActiveChange);
-    this.poeWindow.onAttach(this.handleOverlayAttached);
+    if (!isWaylandMode()) {
+      this.poeWindow.onAttach(this.handleOverlayAttached);
+    }
 
     this.server.onEventAnyClient("CLIENT->MAIN::used-recently", (e) => {
       this.wasUsedRecently = e.isOverlay;
@@ -35,7 +38,16 @@ export class OverlayWindow {
 
     this.window = new BrowserWindow({
       icon: path.join(__dirname, process.env.STATIC!, "icon.png"),
-      ...OVERLAY_WINDOW_OPTS,
+      ...(isWaylandMode()
+        ? {
+            show: false,
+            frame: false,
+            transparent: true,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            backgroundColor: "#00000000",
+          }
+        : OVERLAY_WINDOW_OPTS),
       width: 800,
       height: 600,
       webPreferences: {
@@ -82,21 +94,42 @@ export class OverlayWindow {
     } else {
       this.window.loadURL(url);
     }
+
+    if (isWaylandMode()) {
+      this.window.webContents.once("did-finish-load", () => {
+        this.handleOverlayAttached();
+      });
+    }
   }
 
   assertOverlayActive = () => {
     if (!this.isInteractable) {
       this.isInteractable = true;
-      OverlayController.activateOverlay();
+      if (isWaylandMode()) {
+        const cursor = screen.getCursorScreenPoint();
+        const display = screen.getDisplayNearestPoint(cursor);
+        this.window?.setBounds(display.workArea);
+        this.window?.setAlwaysOnTop(true);
+        this.window?.show();
+        this.window?.focus();
+      } else {
+        OverlayController.activateOverlay();
+      }
       this.poeWindow.isActive = false;
+      this.publishFocusChange();
     }
   };
 
   assertGameActive = () => {
     if (this.isInteractable) {
       this.isInteractable = false;
-      OverlayController.focusTarget();
+      if (isWaylandMode()) {
+        this.window?.hide();
+      } else {
+        OverlayController.focusTarget();
+      }
       this.poeWindow.isActive = true;
+      this.publishFocusChange();
     }
   };
 
@@ -111,7 +144,11 @@ export class OverlayWindow {
 
   updateOpts(overlayKey: string, windowTitle: string) {
     this.overlayKey = overlayKey;
-    this.poeWindow.attach(this.window, windowTitle);
+    const effectiveWindowTitle = process.env.EXILED_WINDOW_TITLE || windowTitle;
+    if (isWaylandMode()) {
+      return;
+    }
+    this.poeWindow.attach(this.window, effectiveWindowTitle);
   }
 
   private handleExtraCommands = (
@@ -175,6 +212,11 @@ export class OverlayWindow {
     if (isActive && this.isInteractable) {
       this.isInteractable = false;
     }
+    this.publishFocusChange(isActive);
+    this.isOverlayKeyUsed = false;
+  };
+
+  private publishFocusChange = (isActive = this.poeWindow.isActive) => {
     this.server.sendEventTo("broadcast", {
       name: "MAIN->OVERLAY::focus-change",
       payload: {
@@ -183,6 +225,5 @@ export class OverlayWindow {
         usingHotkey: this.isOverlayKeyUsed,
       },
     });
-    this.isOverlayKeyUsed = false;
   };
 }
