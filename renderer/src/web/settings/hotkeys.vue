@@ -3,6 +3,12 @@
     <div class="mb-2 bg-gray-700 rounded px-2 py-1 leading-none">
       <i class="fas fa-info-circle"></i> {{ t("settings.clear_hotkey") }}
     </div>
+    <div
+      v-if="linuxFixedHotkeys"
+      class="mb-2 bg-gray-700 rounded px-2 py-1 leading-none text-gray-300"
+    >
+      Linux Wayland hotkeys are fixed: Ctrl+D, Ctrl+Alt+P, F5, F9.
+    </div>
     <div class="flex flex-col gap-4 mb-8">
       <HotkeysGeneric :hotkeys="hotkeys" />
     </div>
@@ -42,6 +48,9 @@ import UiRadio from "@/web/ui/UiRadio.vue";
 import HotkeysGeneric, { HotkeySchema } from "../settings/HotkeysGeneric.vue";
 
 const props = defineProps(configProp());
+const linuxFixedHotkeys =
+  navigator.userAgent.includes("Electron") &&
+  navigator.platform.toLowerCase().includes("linux");
 
 const hotkeys = computed<HotkeySchema[]>(() => {
   const priceCheckWidget = findWidget<PriceCheckWidget>(
@@ -62,6 +71,7 @@ const hotkeys = computed<HotkeySchema[]>(() => {
       items: [
         {
           translationKey: "price_check.hotkey",
+          disabled: linuxFixedHotkeys,
           config: {
             modKey: _configModelValue(priceCheckWidget, "hotkeyHold"),
             nonModKey: _configModelValue(priceCheckWidget, "hotkey"),
@@ -70,6 +80,7 @@ const hotkeys = computed<HotkeySchema[]>(() => {
         {
           translationKey: "price_check.hotkey_locked",
           config: _configModelValue(priceCheckWidget, "hotkeyLocked"),
+          disabled: linuxFixedHotkeys,
         },
       ],
     },
@@ -77,6 +88,7 @@ const hotkeys = computed<HotkeySchema[]>(() => {
       translationKey: "settings.overlay",
       config: _configModelValue(props.config, "overlayKey"),
       required: true,
+      disabled: linuxFixedHotkeys,
     },
     {
       translationKey: "map_check.name",

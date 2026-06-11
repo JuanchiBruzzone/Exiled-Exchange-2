@@ -9,6 +9,7 @@
       v-model="schema.config.value"
       class="w-48"
       :required="schema.required"
+      :disabled="schema.disabled"
     />
     <div
       v-else
@@ -20,12 +21,14 @@
     >
       <button
         :class="{ [$style.active]: schema.config.modKey.value === 'Ctrl' }"
+        :disabled="schema.disabled"
         @click="schema.config.modKey.value = 'Ctrl'"
       >
         Ctrl
       </button>
       <button
         :class="{ [$style.active]: schema.config.modKey.value === 'Alt' }"
+        :disabled="schema.disabled"
         @click="schema.config.modKey.value = 'Alt'"
       >
         Alt
@@ -35,6 +38,7 @@
         v-model="schema.config.nonModKey.value"
         class="w-20"
         :required="schema.required"
+        :disabled="schema.disabled"
         no-mod-keys
       />
     </div>
@@ -55,6 +59,7 @@ export interface HotkeySchema {
         readonly nonModKey: { value: string | null };
       };
   readonly required?: boolean;
+  readonly disabled?: boolean;
 }
 
 defineProps<{
@@ -89,6 +94,11 @@ const { t } = useI18n();
 
     &.active {
       border-color: currentColor;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 

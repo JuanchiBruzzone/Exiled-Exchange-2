@@ -8,21 +8,34 @@
       >
         <input
           v-model.trim="command.text"
+          :disabled="linuxFixedHotkeys"
           class="rounded bg-gray-900 px-1 block w-full font-poe"
         />
         <div class="flex gap-x-2">
-          <ui-toggle v-model="command.send" class="ml-1">{{
-            t("settings.chat_cmd_send")
-          }}</ui-toggle>
-          <button @click="removeCommand(idx)" class="ml-auto text-gray-500">
+          <ui-toggle
+            v-model="command.send"
+            class="ml-1"
+            :disabled="linuxFixedHotkeys"
+            >{{ t("settings.chat_cmd_send") }}</ui-toggle
+          >
+          <button
+            @click="removeCommand(idx)"
+            class="ml-auto text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="linuxFixedHotkeys"
+          >
             {{ t("Remove") }}
           </button>
-          <hotkey-input v-model="command.hotkey" class="w-48" />
+          <hotkey-input
+            v-model="command.hotkey"
+            class="w-48"
+            :disabled="linuxFixedHotkeys"
+          />
         </div>
       </div>
     </div>
     <button
       @click="addComand"
+      :disabled="linuxFixedHotkeys"
       class="bg-gray-900 rounded flex items-baseline px-2 py-1 leading-none"
     >
       <i class="fas fa-plus mr-1"></i> {{ t("settings.chat_cmd_add") }}
@@ -46,6 +59,9 @@ export default defineComponent({
 
     return {
       t,
+      linuxFixedHotkeys:
+        navigator.userAgent.includes("Electron") &&
+        navigator.platform.toLowerCase().includes("linux"),
       commands: computed(() => props.config.commands),
       addComand() {
         props.config.commands.push({

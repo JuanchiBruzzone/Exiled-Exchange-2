@@ -74,7 +74,10 @@ export class HostClipboard {
 
   // when `shouldRestore` is false, this function continues
   // to work as a throttler for callback
-  restoreShortly(cb: (clipboard: Clipboard) => void) {
+  restoreShortly(
+    cb: (clipboard: Clipboard) => void,
+    restoreAfter = RESTORE_AFTER,
+  ) {
     // Not only do we not overwrite the clipboard, but we don't exec callback.
     // This throttling helps against disconnects from "Too many actions".
     if (!this.isRestored) {
@@ -89,7 +92,7 @@ export class HostClipboard {
         clipboard.writeText(saved);
       }
       this.isRestored = true;
-    }, RESTORE_AFTER);
+    }, restoreAfter);
   }
 }
 

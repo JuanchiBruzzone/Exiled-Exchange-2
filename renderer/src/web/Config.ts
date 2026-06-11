@@ -156,8 +156,8 @@ export interface Config {
 }
 
 export const defaultConfig = (): Config => ({
-  configVersion: 31,
-  overlayKey: "Shift + Space",
+  configVersion: 32,
+  overlayKey: "Ctrl + Alt + P",
   overlayBackground: "rgba(129, 139, 149, 0.15)",
   overlayBackgroundClose: true,
   overlayAlwaysClose: false,
@@ -647,6 +647,13 @@ function upgradeConfig(_config: Config): Config {
     priceCheck.rememberListingType = false;
 
     config.configVersion = 31;
+  }
+  if (config.configVersion < 32) {
+    if (config.overlayKey === "Shift + Space") {
+      config.overlayKey = "Ctrl + Alt + P";
+    }
+
+    config.configVersion = 32;
   }
   /* eslint-enable */
 

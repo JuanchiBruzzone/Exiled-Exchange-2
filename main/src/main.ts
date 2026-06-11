@@ -1,7 +1,6 @@
 "use strict";
 
 import { app, systemPreferences } from "electron";
-import { uIOhook } from "uiohook-napi";
 import os from "node:os";
 import { startServer, eventPipe, server } from "./server";
 import { Logger } from "./RemoteLogger";
@@ -16,7 +15,7 @@ import { GameLogWatcher } from "./host-files/GameLogWatcher";
 import { HttpProxy } from "./proxy";
 import { installExtension, VUEJS_DEVTOOLS } from "electron-devtools-installer";
 import { FileWriter } from "./host-files/FileWriter";
-import { isWaylandMode, isX11Mode } from "./platform";
+import { isWaylandMode } from "./platform";
 
 app.setName("Exiled Exchange 2");
 if (process.platform === "linux") {
@@ -32,8 +31,6 @@ if (isWaylandMode()) {
     "enable-features",
     "WaylandWindowDecorations,GlobalShortcutsPortal",
   );
-} else if (isX11Mode()) {
-  app.commandLine.appendSwitch("ozone-platform", "x11");
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -111,8 +108,10 @@ let tray: AppTray;
     setTimeout(
       async () => {
         const overlay = new OverlayWindow(eventPipe, logger, poeWindow);
-        // eslint-disable-next-line no-new
-        new OverlayVisibility(eventPipe, overlay, gameConfig);
+        if (!isWaylandMode()) {
+          // eslint-disable-next-line no-new
+          new OverlayVisibility(eventPipe, overlay, gameConfig);
+        }
         const shortcuts = await Shortcuts.create(
           logger,
           overlay,
@@ -138,12 +137,6 @@ let tray: AppTray;
             fileWriter.restart(cfg.libraryAlpha, cfg.libraryOutputPath);
           },
         );
-        if (isWaylandMode()) {
-          // Native Wayland uses the desktop shortcut portal instead of uIOhook.
-        } else {
-          uIOhook.start();
-          console.log("uIOhook started");
-        }
         const port = await startServer(appUpdater, logger);
         // TODO: move up (currently crashes)
         logger.write(`info ${os.type()} ${os.release} / v${app.getVersion()}`);

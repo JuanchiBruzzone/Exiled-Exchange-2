@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "node build/script.mjs",
     "build": "tsc --noEmit && node build/script.mjs --prod",
-    "rebuild:uiohook-linux": "node scripts/rebuild-uiohook-linux.mjs",
     "package": "electron-builder build",
     "lint": "eslint src",
     "fix": "eslint src --fix",

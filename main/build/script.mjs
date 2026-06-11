@@ -3,20 +3,15 @@ import electron from 'electron'
 import esbuild from 'esbuild'
 
 const isDev = !process.argv.includes('--prod')
-const electronPlatform = process.env.EXILED_ELECTRON_PLATFORM
 
 function getElectronArgs () {
   const args = []
 
   if (process.platform === 'linux') {
-    if (electronPlatform === 'wayland') {
-      args.push(
-        '--ozone-platform=wayland',
-        '--enable-features=WaylandWindowDecorations,GlobalShortcutsPortal'
-      )
-    } else if (electronPlatform === 'x11') {
-      args.push('--ozone-platform=x11')
-    }
+    args.push(
+      '--ozone-platform=wayland',
+      '--enable-features=WaylandWindowDecorations,GlobalShortcutsPortal'
+    )
   }
 
   args.push('.')
