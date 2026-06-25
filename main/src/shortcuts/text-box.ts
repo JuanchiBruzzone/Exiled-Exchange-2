@@ -1,5 +1,4 @@
 import { uIOhook, UiohookKey as Key } from "uiohook-napi";
-import process from "process";
 import type { HostClipboard } from "./HostClipboard";
 import type { OverlayWindow } from "../windowing/OverlayWindow";
 
@@ -19,7 +18,7 @@ export function typeInChat(
   clipboard: HostClipboard,
 ) {
   clipboard.restoreShortly((clipboard) => {
-    const modifiers = process.platform === "darwin" ? [Key.Meta] : [Key.Ctrl];
+    const modifiers = [Key.Ctrl];
 
     if (text.startsWith(PLACEHOLDER_LAST)) {
       text = text.slice(`${PLACEHOLDER_LAST} `.length);
@@ -64,9 +63,7 @@ export function stashSearch(
     clipboard.writeText(text);
     uIOhook.keyTap(Key.F, [Key.Ctrl]);
 
-    uIOhook.keyTap(Key.V, [
-      process.platform === "darwin" ? Key.Meta : Key.Ctrl,
-    ]);
+    uIOhook.keyTap(Key.V, [Key.Ctrl]);
     uIOhook.keyTap(Key.Enter);
   });
 }

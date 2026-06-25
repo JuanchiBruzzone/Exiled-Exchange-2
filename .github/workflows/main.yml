@@ -34,10 +34,7 @@ jobs:
 
   package:
     needs: renderer
-    strategy:
-      matrix:
-        os: [windows-2025, ubuntu-22.04, macos-14]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-node@v6
@@ -51,16 +48,9 @@ jobs:
       working-directory: ./main
     - run: npm run build
       working-directory: ./main
-    - run: npm run package "--" -p onTagOrDraft
+    - run: npm run package "--" --linux AppImage -p onTagOrDraft
       working-directory: ./main
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Hash
-      if: ${{ startsWith(matrix.os, 'windows') }}
-      run: type .\main\dist\latest.yml
-    - name: Hash
-      if: ${{ startsWith(matrix.os, 'ubuntu') }}
       run: cat ./main/dist/latest-linux.yml
-    - name: Hash
-      if: ${{ startsWith(matrix.os, 'macos') }}
-      run: cat ./main/dist/latest-mac.yml

@@ -4,7 +4,7 @@ const BASE = '/Exiled-Exchange-2/'
 
 export default defineConfig({
   title: 'Exiled Exchange 2',
-  description: 'App for price-checking items in Path of Exile 2',
+  description: 'Linux KDE Plasma Wayland overlay for Path of Exile 2',
   base: BASE,
   mpa: true,
   head: [
@@ -22,13 +22,13 @@ export default defineConfig({
     // logo: 'TODO', https://github.com/vuejs/vitepress/issues/1401
     appVersion: '0.15.4',
     github: {
-      releasesUrl: 'https://github.com/Kvan7/Exiled-Exchange-2/releases'
+      releasesUrl: 'https://github.com/JuanchiBruzzone/Exiled-Exchange-2/releases'
     },
     socialLinks: [
       {
         text: 'GitHub',
         color: '#181717',
-        link: 'https://github.com/Kvan7/Exiled-Exchange-2'
+        link: 'https://github.com/JuanchiBruzzone/Exiled-Exchange-2'
       }
     ],
     sidebar: [

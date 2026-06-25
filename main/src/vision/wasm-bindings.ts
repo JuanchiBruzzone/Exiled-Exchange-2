@@ -11,20 +11,8 @@ const langMap = new Map([
   // ['cmn-Hant', 'chi_tra'],
 ]);
 
-export async function init(binDir: string) {
-  if (process.platform !== "win32") {
-    // so far only tested on Windows with BGRA images
-    throw new Error("Unsupported platform");
-  }
-
-  const tessInstantiate = (
-    await import("file://" + binDir + "/tesseract-core-simd.js")
-  ).default;
-  tessModule = await tessInstantiate();
-  tessApi = new tessModule.TessBaseAPI();
-
-  const cvPromise = (await import("file://" + binDir + "/opencv.js")).default;
-  cv = await cvPromise;
+export async function init(_binDir: string) {
+  throw new Error("OCR screenshot pipeline is unsupported on Linux Wayland.");
 }
 
 export async function changeLanguage(lang: string, binDir: string) {

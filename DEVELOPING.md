@@ -1,31 +1,65 @@
-# How this works
+# Developing This Fork
 
-There are 2 main parts of the app:
+This fork has two primary parts:
 
-1. renderer: this is the HTML/Javascript-based UI rendered within the Electron container. This runs Vue.js, a React-like Javascript framework for rendering front-end.
-2. main: includes the main app (written in Electron). Handles keyboard shortcuts, brings up the UI and overlays.
+1. `renderer/`: upstream Exiled Exchange 2 Vue UI, parser, trade search, and settings.
+2. `native/`: Linux/KDE Wayland Qt host that replaces the Electron `main/` process for this fork.
 
-Note that these 2 both depend on each other, and one cannot run without the other.
+Keep renderer changes close to upstream unless the native host requires a small integration point. The goal is upstream behavior with a native Linux Wayland host, not a separate product.
 
-# How to develop
+## Native Development Flow
 
-The most up-to-date instructions can always be derived from CI:
+From the repository root:
 
-[.github/workflows/main.yml](https://github.com/Kvan7/exiled-exchange-2/blob/master/.github/workflows/main.yml)
+```shell
+./testUpdate.sh
+./native/exiled-exchange-native
+```
 
-Here's what that looks like as of 2023-12-03.
+`testUpdate.sh`:
+
+- builds the renderer with Vite
+- builds the Qt host with `qmake6` and `make`
+- installs a local desktop entry for the native executable
+
+## Manual Build
 
 ```shell
 cd renderer
-npm install
+npm ci
 npm run make-index-files
-npm run dev
+npm run build
 
-# In a second shell
-cd main
-npm install
-npm run dev
+cd ../native
+qmake6 exiled-exchange-native.pro -o Makefile
+make -j"$(nproc)"
 ```
+
+Run:
+
+```shell
+./native/exiled-exchange-native
+```
+
+## Runtime Requirements
+
+- KDE Plasma Wayland session
+- Path of Exile 2 in windowed or windowed fullscreen mode
+- Qt 6 and Qt WebEngine
+- KDE Frameworks: `KGlobalAccel`, `KWindowSystem`, `KCoreAddons`
+- LayerShellQt
+- `ydotool` with `ydotoold` running
+
+## Upstream Sync
+
+Use upstream Exiled Exchange 2 as the source of truth for renderer and trade behavior:
+
+```shell
+git remote add upstream https://github.com/Kvan7/Exiled-Exchange-2.git
+git fetch upstream
+```
+
+When upstream changes overlap with the native fork, prefer the upstream renderer implementation and keep native-specific changes in `native/`.
 
 ## Formatting
 
@@ -34,38 +68,6 @@ cd renderer
 npm run format
 ```
 
-# How to build
+## Release Notes
 
-```shell
-cd renderer
-npm install
-npm run make-index-files
-npm run build
-
-cd ../main
-npm install
-npm run build
-# We want to sign with a distribution certificate to ensure other users can
-# install without errors
-CSC_NAME="Certificate name in Keychain" npm run package
-```
-
-# How to release a build
-
-1. Commit all changes
-2. Bump version in `main/package.json`
-3. `npm i` in renderer & main (update `package-lock.json` with new version)
-4. `npm run build` in renderer & main
-5. Stage & commit bumped version
-6. `git push`
-7. `git tag vX.X.X`
-8. `git push origin vX.X.X`
-9. Open release page, create release with tag & title as text of tag & save as draft
-
-# How to build yourself
-
-```shell
-sh testUpdate.sh
-```
-
-Read the contents of `testUpdate.sh` to understand what it does. Running random scripts from the internet is not recommended so you really should read the code before running it.
+This repository currently builds a native Linux host binary locally. Packaging work should document its target clearly as Linux/KDE Plasma Wayland for Path of Exile 2.

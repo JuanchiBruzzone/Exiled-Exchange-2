@@ -1,7 +1,9 @@
 "use strict";
 
-import { app, systemPreferences } from "electron";
+import { app } from "electron";
+import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { startServer, eventPipe, server } from "./server";
 import { Logger } from "./RemoteLogger";
 import { GameWindow } from "./windowing/GameWindow";
@@ -10,75 +12,85 @@ import { GameConfig } from "./host-files/GameConfig";
 import { Shortcuts } from "./shortcuts/Shortcuts";
 import { AppUpdater } from "./AppUpdater";
 import { AppTray } from "./AppTray";
-import { OverlayVisibility } from "./windowing/OverlayVisibility";
 import { GameLogWatcher } from "./host-files/GameLogWatcher";
 import { HttpProxy } from "./proxy";
 import { installExtension, VUEJS_DEVTOOLS } from "electron-devtools-installer";
 import { FileWriter } from "./host-files/FileWriter";
-import { isWaylandMode } from "./platform";
+import { assertLinuxOnly } from "./platform";
+
+assertLinuxOnly();
+
+const startupLogPath = path.join(os.tmpdir(), "exiled-exchange-2-startup.log");
+function startupLog(message: string) {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  try {
+    fs.appendFileSync(startupLogPath, line);
+  } catch {
+    // Startup logging must never prevent the app from launching.
+  }
+}
+
+startupLog(`main loaded pid=${process.pid}`);
+
+process.addListener("uncaughtException", (err) => {
+  startupLog(`uncaughtException ${err.message}\n${err.stack ?? ""}`);
+});
+process.addListener("unhandledRejection", (reason) => {
+  startupLog(`unhandledRejection ${(reason as Error)?.stack ?? String(reason)}`);
+});
 
 app.setName("Exiled Exchange 2");
-if (process.platform === "linux") {
-  const linuxApp = app as typeof app & {
-    setDesktopName?: (desktopName: string) => void;
-  };
-  linuxApp.setDesktopName?.("exiled-exchange-2.desktop");
-}
+const linuxApp = app as typeof app & {
+  setDesktopName?: (desktopName: string) => void;
+};
+// KDE's GlobalShortcuts portal reliably prompts for Electron under Chromium's
+// desktop identity. A custom AppImage desktop id registers but does not prompt
+// consistently when launched directly.
+const portalDesktopFile =
+  process.env.EXILED_PORTAL_DESKTOP_FILE || "com.google.Chrome.desktop";
+startupLog(`setDesktopName ${portalDesktopFile}`);
+linuxApp.setDesktopName?.(portalDesktopFile);
 
-if (isWaylandMode()) {
-  app.commandLine.appendSwitch("ozone-platform", "wayland");
-  app.commandLine.appendSwitch(
-    "enable-features",
-    "WaylandWindowDecorations,GlobalShortcutsPortal",
-  );
-}
+app.commandLine.appendSwitch("ozone-platform", "wayland");
+app.commandLine.appendSwitch(
+  "enable-features",
+  "WaylandWindowDecorations,GlobalShortcutsPortal",
+);
 
-if (!app.requestSingleInstanceLock()) {
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+startupLog(`single-instance-lock ${hasSingleInstanceLock}`);
+if (!hasSingleInstanceLock) {
   app.exit();
 }
 
-if (process.platform !== "darwin") {
-  app.disableHardwareAcceleration();
-}
-app.enableSandbox();
+app.disableHardwareAcceleration();
 let tray: AppTray;
 
 (async () => {
-  if (process.platform === "darwin") {
-    async function ensureAccessibilityPermission(): Promise<boolean> {
-      if (systemPreferences.isTrustedAccessibilityClient(false)) return true;
-
-      // Trigger the system prompt
-      systemPreferences.isTrustedAccessibilityClient(true);
-
-      const maxWaitTime = 15000; // 15 seconds
-      const startTime = Date.now();
-
-      return await new Promise((resolve) => {
-        const interval = setInterval(() => {
-          if (systemPreferences.isTrustedAccessibilityClient(false)) {
-            clearInterval(interval);
-            resolve(true);
-          }
-
-          // Stop waiting if time runs out
-          if (Date.now() - startTime > maxWaitTime) {
-            clearInterval(interval);
-            resolve(false);
-          }
-        }, 1000);
-      });
-    }
-    const hasPermission = await ensureAccessibilityPermission();
-    if (!hasPermission) {
-      console.warn("Accessibility permission not granted, exiting");
-      app.quit();
-      return;
-    }
-    console.log("Accessibility permission granted, starting app");
-  }
-
+  app.on("render-process-gone", (_event, webContents, details) => {
+    startupLog(
+      `render-process-gone id=${webContents.id} reason=${details.reason} exitCode=${details.exitCode}`,
+    );
+  });
+  app.on("child-process-gone", (_event, details) => {
+    startupLog(
+      `child-process-gone type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`,
+    );
+  });
+  app.on("second-instance", () => {
+    startupLog("second-instance");
+  });
+  app.on("window-all-closed", () => {
+    startupLog("window-all-closed");
+  });
+  app.on("before-quit", () => {
+    startupLog("before-quit");
+  });
+  app.on("will-quit", () => {
+    startupLog("will-quit");
+  });
   app.on("ready", async () => {
+    startupLog("app ready");
     tray = new AppTray(eventPipe);
     const logger = new Logger(eventPipe);
     const gameConfig = new GameConfig(eventPipe, logger);
@@ -100,18 +112,18 @@ let tray: AppTray;
     }
     process.addListener("uncaughtException", (err) => {
       logger.write(`error [uncaughtException] ${err.message}, ${err.stack}`);
+      startupLog(`ready uncaughtException ${err.message}\n${err.stack ?? ""}`);
     });
     process.addListener("unhandledRejection", (reason) => {
       logger.write(`error [unhandledRejection] ${(reason as Error).stack}`);
+      startupLog(
+        `ready unhandledRejection ${(reason as Error)?.stack ?? String(reason)}`,
+      );
     });
 
     setTimeout(
       async () => {
         const overlay = new OverlayWindow(eventPipe, logger, poeWindow);
-        if (!isWaylandMode()) {
-          // eslint-disable-next-line no-new
-          new OverlayVisibility(eventPipe, overlay, gameConfig);
-        }
         const shortcuts = await Shortcuts.create(
           logger,
           overlay,
@@ -138,13 +150,14 @@ let tray: AppTray;
           },
         );
         const port = await startServer(appUpdater, logger);
+        startupLog(`server started ${port}`);
         // TODO: move up (currently crashes)
         logger.write(`info ${os.type()} ${os.release} / v${app.getVersion()}`);
         overlay.loadAppPage(port);
         tray.serverPort = port;
       },
-      // fixes(linux): window is black instead of transparent
-      process.platform === "linux" ? 1000 : 0,
+      // Wayland surfaces can briefly map black/opaque if created immediately.
+      1000,
     );
   });
 })();

@@ -8,19 +8,9 @@ export class AppTray {
   serverPort = 0;
 
   constructor(server: ServerEvents) {
-    let trayImage = nativeImage.createFromPath(
-      path.join(
-        __dirname,
-        process.env.STATIC!,
-        process.platform === "win32" ? "icon.ico" : "icon.png",
-      ),
+    const trayImage = nativeImage.createFromPath(
+      path.join(__dirname, process.env.STATIC!, "icon.png"),
     );
-
-    if (process.platform === "darwin") {
-      // Mac image size needs to be smaller, or else it looks huge. Size
-      // guideline is from https://iconhandbook.co.uk/reference/chart/osx/
-      trayImage = trayImage.resize({ width: 22, height: 22 });
-    }
 
     this.tray = new Tray(trayImage);
     this.tray.setToolTip(`Exiled Exchange 2 v${app.getVersion()}`);

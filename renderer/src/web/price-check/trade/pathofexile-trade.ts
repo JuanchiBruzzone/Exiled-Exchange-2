@@ -397,6 +397,19 @@ interface TradeDataRichLine {
   icon?: string;
 }
 
+interface FetchModInfo {
+  name?: string;
+  tier?: string;
+  level?: number;
+  magnitudes: Array<{ min: string; max: string }>;
+}
+
+interface FetchResultMod {
+  description: string;
+  hash: string;
+  mods?: FetchModInfo[];
+}
+
 interface FetchResult {
   id: string;
   item: {
@@ -435,11 +448,12 @@ interface FetchResult {
     properties?: TradeDataRichLine[];
     requirements?: TradeDataRichLine[];
     grantedSkills?: TradeDataRichLine[];
-    implicitMods?: string[];
-    explicitMods?: string[];
-    mutatedMods?: string[];
-    enchantMods?: string[];
-    runeMods?: string[];
+    implicitMods?: FetchResultMod[] | string[];
+    explicitMods?: FetchResultMod[] | string[];
+    craftedMods?: FetchResultMod[] | string[];
+    mutatedMods?: FetchResultMod[] | string[];
+    enchantMods?: FetchResultMod[] | string[];
+    runeMods?: FetchResultMod[] | string[];
     extended?: {
       dps?: number;
       pdps?: number;
@@ -458,9 +472,10 @@ interface FetchResult {
       mods?: Record<string, TradeModMetadata[]>;
       hashes?: Record<string, Array<Array<string | number[] | null>>>;
     };
-    pseudoMods?: string[];
-    desecratedMods?: string[];
-    fracturedMods?: string[];
+    veiledMods?: FetchResultMod[] | string[];
+    pseudoMods?: FetchResultMod[] | string[];
+    desecratedMods?: FetchResultMod[] | string[];
+    fracturedMods?: FetchResultMod[] | string[];
   };
   listing: {
     indexed: string;
@@ -479,6 +494,7 @@ interface FetchResult {
 export interface DisplayItemLine {
   // text should include colon if required...
   text: string;
+  tier?: string;
   value?: string | number;
   color: TradeNumberColors;
 }
@@ -506,6 +522,7 @@ export interface DisplayItem {
   explicitMods?: DisplayItemLine[];
   mutatedMods?: DisplayItemLine[];
   desecratedMods?: DisplayItemLine[];
+  veiledMods?: DisplayItemLine[];
   pseudoMods?: DisplayItemLine[];
   extended?: Array<{ text: string; value: number }>;
   itemTags?: DisplayItemLine[];
@@ -537,7 +554,7 @@ export interface PricingResult {
   accountName: string;
   accountStatus: "offline" | "online" | "afk";
   ign: string;
-  displayItem: DisplayItem;
+  displayItem?: DisplayItem;
   inDemand?: boolean;
   gone?: boolean;
 }
@@ -599,15 +616,15 @@ export function createTradeRequest(
       : filters.searchExact;
 
   if (activeSearch.nameTrade) {
-    query.name = nameToQuery(activeSearch.nameTrade, filters);
+    query.name = nameToQuery(activeSearch.nameTrade, filters, "nameTrade");
   } else if (activeSearch.name) {
-    query.name = nameToQuery(activeSearch.name, filters);
+    query.name = nameToQuery(activeSearch.name, filters, "name");
   }
 
   if (activeSearch.baseTypeTrade) {
-    query.type = nameToQuery(activeSearch.baseTypeTrade, filters);
+    query.type = nameToQuery(activeSearch.baseTypeTrade, filters, "baseTypeTrade");
   } else if (activeSearch.baseType) {
-    query.type = nameToQuery(activeSearch.baseType, filters);
+    query.type = nameToQuery(activeSearch.baseType, filters, "baseType");
   }
 
   // TYPE FILTERS
@@ -1240,7 +1257,10 @@ export async function requestTradeResultList(
     );
     adjustRateLimits(RATE_LIMIT_RULES.SEARCH, response.headers);
 
-    const _data = (await response.json()) as TradeResponse<SearchResult>;
+    const _data = await parseTradeResponse<SearchResult>(
+      response,
+      "trade site request failed",
+    );
     if (_data.error) {
       throw new Error(_data.error.message);
     } else {
@@ -1276,9 +1296,9 @@ export async function requestResults(
     );
     adjustRateLimits(RATE_LIMIT_RULES.FETCH, response.headers);
 
-    const _data = (await response.json()) as TradeResponse<{
+    const _data = await parseTradeResponse<{
       result: Array<FetchResult | null>;
-    }>;
+    }>(response, "trade fetch request failed");
     if (_data.error) {
       throw new Error(_data.error.message);
     } else {
@@ -1293,7 +1313,12 @@ export async function requestResults(
   }
 
   return data.map<PricingResult>((result) => {
-    const displayItem: DisplayItem = parseFetchResult(result);
+    let displayItem: DisplayItem | undefined;
+    try {
+      displayItem = parseFetchResult(result);
+    } catch (e) {
+      console.error(e);
+    }
 
     let priceCurrencyRank: PricingResult["priceCurrencyRank"];
     if (
@@ -1363,6 +1388,33 @@ export async function requestResults(
   });
 }
 
+async function parseTradeResponse<T>(
+  response: Response,
+  context: string,
+): Promise<TradeResponse<T>> {
+  const text = await response.text();
+  let data: TradeResponse<T>;
+
+  try {
+    data = JSON.parse(text) as TradeResponse<T>;
+  } catch {
+    throw new Error(
+      `${context} (${response.status} ${response.statusText}): ${text.slice(0, 500)}`,
+    );
+  }
+
+  if (!response.ok) {
+    const message = data.error
+      ? `${data.error.code}: ${data.error.message}`
+      : text.slice(0, 500);
+    throw new Error(
+      `${context} (${response.status} ${response.statusText}): ${message}`,
+    );
+  }
+
+  return data;
+}
+
 function getMinMax(roll: StatFilter["roll"]) {
   if (!roll) {
     return { min: undefined, max: undefined };
@@ -1416,13 +1468,46 @@ function tradeIdToQuery(id: string, stat: StatFilter) {
   };
 }
 
-function nameToQuery(name: string, filters: ItemFilters) {
+function stringToTradeQuery(value: unknown, field: string): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value == null) {
+    throw new Error(`Invalid trade query ${field}: missing value`);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const firstString = value.find((item) => typeof item === "string");
+    if (firstString) {
+      console.warn(`Invalid trade query ${field}; using first string`, value);
+      return firstString;
+    }
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["option", "refName", "name"]) {
+      if (typeof record[key] === "string") {
+        console.warn(`Invalid trade query ${field}; using ${key}`, value);
+        return record[key];
+      }
+    }
+  }
+  throw new Error(`Invalid trade query ${field}: ${JSON.stringify(value)}`);
+}
+
+function nameToQuery(name: unknown, filters: ItemFilters, field: string) {
+  const option = stringToTradeQuery(name, field);
   if (!filters.discriminator) {
-    return name;
+    return option;
   } else {
     return {
-      discriminator: filters.discriminator.trade,
-      option: name,
+      discriminator: stringToTradeQuery(
+        filters.discriminator.trade,
+        "discriminator.trade",
+      ),
+      option,
     };
   }
 }
@@ -1518,6 +1603,7 @@ function parseMods(result: FetchResult): {
   desecratedMods?: DisplayItemLine[] | undefined;
   mutatedMods?: DisplayItemLine[] | undefined;
   fracturedMods?: DisplayItemLine[] | undefined;
+  veiledMods?: DisplayItemLine[] | undefined;
   pseudoMods?: DisplayItemLine[] | undefined;
 } {
   /*
@@ -1543,21 +1629,41 @@ function parseMods(result: FetchResult): {
       result.item.mutatedMods,
       TradeNumberColors.Mutated,
     ),
+    veiledMods: parseModBlock(
+      result.item.veiledMods,
+      TradeNumberColors.Desecrated,
+    ),
     pseudoMods: parseModBlock(result.item.pseudoMods),
   };
 }
 
 function parseModBlock(
-  translated: string[] | undefined,
+  translated: string[] | FetchResultMod[] | undefined,
   color: TradeNumberColors = TradeNumberColors.Augmented,
   // mods: TradeModMetadata[] | undefined,
   // hashes: Array<Array<string | number[] | null>> | undefined,
 ): DisplayItemLine[] | undefined {
   // separate function, allow doing complex parsing later if needed
   if (!translated) return undefined;
-  return translated.map((s) => {
-    return { text: parseAffixStrings(s), color };
+  if (!translated.length) return [];
+  if (typeof translated[0] === "string") {
+    return (translated as string[]).map((s) => {
+      return { text: parseAffixStrings(s), color };
+    });
+  }
+  return (translated as FetchResultMod[]).map((s) => {
+    return {
+      text: parseAffixStrings(s.description),
+      color,
+      tier: getTierV2(s.mods),
+    };
   });
+}
+
+function getTierV2(mods: FetchModInfo[] | undefined): string | undefined {
+  if (!mods?.length) return;
+
+  return mods.map((mod) => mod.tier).join(" + ");
 }
 
 function buildNameBlock(

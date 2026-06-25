@@ -5,14 +5,16 @@ import esbuild from 'esbuild'
 const isDev = !process.argv.includes('--prod')
 
 function getElectronArgs () {
+  if (process.platform !== 'linux') {
+    throw new Error(`This fork is Linux-only. Current platform: ${process.platform}`)
+  }
+
   const args = []
 
-  if (process.platform === 'linux') {
-    args.push(
-      '--ozone-platform=wayland',
-      '--enable-features=WaylandWindowDecorations,GlobalShortcutsPortal'
-    )
-  }
+  args.push(
+    '--ozone-platform=wayland',
+    '--enable-features=WaylandWindowDecorations,GlobalShortcutsPortal'
+  )
 
   args.push('.')
   return args

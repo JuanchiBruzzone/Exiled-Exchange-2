@@ -11,23 +11,6 @@ files:
     to: "."
 extraMetadata:
   main: "main.js"
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
-win:
-  target:
-    - "nsis"
-    - "portable"
 linux:
   target:
     - "AppImage"
-mac:
-  target:
-    - target: "dmg"
-      arch:
-        - "universal"
-  identity: null
-  x64ArchFiles: "*"
-appImage:
-  executableArgs:
-    - "--sandbox"

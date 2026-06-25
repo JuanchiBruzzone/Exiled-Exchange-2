@@ -4,7 +4,7 @@ title: FAQ
 
 - **Where can I change settings, league?**
 
-  Open Path of Exile 2 and press overlay key `Shift + Space`. Click on the button with cog icon there.
+  Open Path of Exile 2 and press overlay key `Ctrl + Alt + P`. Click on the button with cog icon there.
   ![overlay](/reference-images/overlay-keybind.png)
 
 - **Where can I find the logs?**
@@ -36,9 +36,9 @@ title: FAQ
 
   Maybe, would need the app_i18n file to be translated to your language
 
-- **I downloaded a zip with a bunch of files, but no .exe inside?**
+- **I downloaded a zip with a bunch of files, but no executable inside?**
 
-  You have downloaded the source code, download [here](/download)
+  You have downloaded the source code. Build the native Linux host with `./testUpdate.sh`.
 
 - **I can't price check items in Divination Card stash tab.**\
   **I can't price check rewards in Curio Display room (Heist Blueprints).**\
@@ -71,6 +71,6 @@ title: FAQ
 
 - **Is exiledexchange2.com an official website?**
 
-  No, the only official website is <https://kvan7.github.io/Exiled-Exchange-2/> and the official github repo is <https://github.com/Kvan7/Exiled-Exchange-2>. Any other mirrors are not known to the developer, downloading from them may be unsafe or malicious.
+  This Linux fork is maintained separately from upstream Exiled Exchange 2. Prefer releases from the repository you built or installed from, and treat unknown mirrors as unsafe.
 
 - [Index Page](/index-page.md)

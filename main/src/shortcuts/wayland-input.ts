@@ -136,10 +136,6 @@ export function stashSearchWayland(
   );
 }
 
-function runYdotoolKey(keys: string[]) {
-  runYdotoolSequence([keys]);
-}
-
 function runClipboardSequenceWayland(
   text: string,
   sequence: string[][],

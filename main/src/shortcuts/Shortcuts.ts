@@ -1,15 +1,7 @@
 import { screen, globalShortcut } from "electron";
-import { uIOhook, UiohookKey, UiohookWheelEvent } from "uiohook-napi";
-import {
-  isModKey,
-  KeyToElectron,
-  mergeTwoHotkeys,
-} from "../../../ipc/KeyToCode";
-import { typeInChat, stashSearch } from "./text-box";
 import { WidgetAreaTracker } from "../windowing/WidgetAreaTracker";
 import { HostClipboard } from "./HostClipboard";
 import { OcrWorker } from "../vision/link-main";
-import { isWaylandMode } from "../platform";
 import {
   pressWaylandCopyItemText,
   stashSearchWayland,
@@ -22,22 +14,36 @@ import type { GameWindow } from "../windowing/GameWindow";
 import type { GameConfig } from "../host-files/GameConfig";
 import type { ServerEvents } from "../server";
 
-type UiohookKeyT = keyof typeof UiohookKey;
-const UiohookToName = Object.fromEntries(
-  Object.entries(UiohookKey).map(([k, v]) => [v, k]),
-);
 const DEDUPE_MS = 100;
 
-interface UiohookShortcut {
-  keycode: number;
-  ctrlKey: boolean;
-  altKey: boolean;
-  shiftKey: boolean;
-}
+type FixedShortcut = ShortcutAction & {
+  accelerator: string;
+};
+
+const FIXED_SHORTCUTS: FixedShortcut[] = [
+  {
+    shortcut: "Ctrl + D",
+    accelerator: "Ctrl+D",
+    action: { type: "copy-item", target: "price-check", focusOverlay: false },
+  },
+  {
+    shortcut: "Ctrl + Alt + P",
+    accelerator: "Ctrl+Alt+P",
+    action: { type: "toggle-overlay" },
+  },
+  {
+    shortcut: "F5",
+    accelerator: "F5",
+    action: { type: "paste-in-chat", text: "/hideout", send: true },
+  },
+  {
+    shortcut: "F9",
+    accelerator: "F9",
+    action: { type: "paste-in-chat", text: "/exit", send: true },
+  },
+];
 
 export class Shortcuts {
-  private actions: ShortcutAction[] = [];
-  private stashScroll = false;
   private logKeys = false;
   private isRegistered = false;
   private lastActionAt = 0;
@@ -47,7 +53,7 @@ export class Shortcuts {
   static async create(
     logger: Logger,
     overlay: OverlayWindow,
-    poeWindow: GameWindow,
+    _poeWindow: GameWindow,
     gameConfig: GameConfig,
     server: ServerEvents,
   ) {
@@ -55,7 +61,6 @@ export class Shortcuts {
     const shortcuts = new Shortcuts(
       logger,
       overlay,
-      poeWindow,
       gameConfig,
       server,
       ocrWorker,
@@ -66,7 +71,6 @@ export class Shortcuts {
   private constructor(
     private logger: Logger,
     private overlay: OverlayWindow,
-    private poeWindow: GameWindow,
     private gameConfig: GameConfig,
     private server: ServerEvents,
     private ocrWorker: OcrWorker,
@@ -74,188 +78,49 @@ export class Shortcuts {
     this.areaTracker = new WidgetAreaTracker(server, overlay);
     this.clipboard = new HostClipboard(logger);
 
-    this.poeWindow.on("active-change", (isActive) => {
-      if (process.platform === "linux") return;
-
-      process.nextTick(() => {
-        if (isActive === this.poeWindow.isActive) {
-          if (isActive) {
-            this.register();
-          } else {
-            this.unregister();
-          }
-        }
-      });
-    });
-
     this.server.onEventAnyClient("CLIENT->MAIN::user-action", (e) => {
       if (e.action === "stash-search") {
-        if (isWaylandMode()) {
-          stashSearchWayland(e.text, this.clipboard, this.overlay);
-        } else {
-          stashSearch(e.text, this.clipboard, this.overlay);
-        }
+        stashSearchWayland(e.text, this.clipboard, this.overlay);
       }
     });
 
-    if (!isWaylandMode()) {
-      uIOhook.on("keydown", (e) => {
-        if (this.logKeys) {
-          const pressed = eventToString(e);
-          this.logger.write(`debug [Shortcuts] Keydown ${pressed}`);
-        }
-
-        if (process.platform !== "linux" && !this.poeWindow.isActive) return;
-
-        for (const entry of this.actions) {
-          const uiohookShortcut = shortcutToUiohook(entry.shortcut);
-          if (!uiohookShortcut || !matchesShortcut(e, uiohookShortcut))
-            continue;
-
-          this.runAction(entry);
-        }
-      });
-      uIOhook.on("keyup", (e) => {
-        if (!this.logKeys) return;
-        this.logger.write(
-          `debug [Shortcuts] Keyup ${
-            UiohookToName[e.keycode] || "not_supported_key"
-          }`,
-        );
-      });
-
-      uIOhook.on("wheel", (e) => {
-        if (!e.ctrlKey || !this.poeWindow.isActive || !this.stashScroll) return;
-
-        if (!isStashArea(e, this.poeWindow)) {
-          if (e.rotation > 0) {
-            uIOhook.keyTap(UiohookKey.ArrowRight);
-          } else if (e.rotation < 0) {
-            uIOhook.keyTap(UiohookKey.ArrowLeft);
-          }
-        }
-      });
-    }
+    this.registerFixedShortcuts();
   }
 
   updateActions(
-    actions: ShortcutAction[],
-    stashScroll: boolean,
+    _actions: ShortcutAction[],
+    _stashScroll: boolean,
     logKeys: boolean,
     restoreClipboard: boolean,
     language: string,
   ) {
-    this.stashScroll = stashScroll;
     this.logKeys = logKeys;
     this.clipboard.updateOptions(restoreClipboard);
     this.ocrWorker.updateOptions(language);
-    if (isWaylandMode()) {
-      actions = withWaylandDefaultActions(actions);
-    }
-
-    const copyItemShortcut = mergeTwoHotkeys(
-      "Ctrl + C",
-      this.gameConfig.showModsKey,
-    );
-    if (copyItemShortcut !== "Ctrl + C") {
-      actions.push({
-        shortcut: copyItemShortcut,
-        action: { type: "test-only" },
-      });
-    }
-
-    const allShortcuts = new Set([
-      "Ctrl + C",
-      "Ctrl + V",
-      "Ctrl + A",
-      "Ctrl + F",
-      "Ctrl + Enter",
-      "Home",
-      "Delete",
-      "Enter",
-      "ArrowUp",
-      "ArrowRight",
-      "ArrowLeft",
-      copyItemShortcut,
-    ]);
-
-    for (const action of actions) {
-      if (
-        allShortcuts.has(action.shortcut) &&
-        action.action.type !== "test-only"
-      ) {
-        this.logger.write(
-          `error [Shortcuts] Hotkey "${action.shortcut}" reserved by the game will not be registered.`,
-        );
-      }
-    }
-    actions = actions.filter((action) => !allShortcuts.has(action.shortcut));
-
-    const duplicates = new Set<string>();
-    for (const action of actions) {
-      if (allShortcuts.has(action.shortcut)) {
-        this.logger.write(
-          `error [Shortcuts] It is not possible to use the same hotkey "${action.shortcut}" for multiple actions.`,
-        );
-        duplicates.add(action.shortcut);
-      } else {
-        allShortcuts.add(action.shortcut);
-      }
-    }
-    this.actions = actions.filter(
-      (action) =>
-        !duplicates.has(action.shortcut) ||
-        action.action.type === "toggle-overlay",
-    );
-
-    if (isWaylandMode()) {
-      for (const shortcut of getWaylandOverlayAliases()) {
-        if (!this.actions.some((entry) => entry.shortcut === shortcut)) {
-          this.actions.push({
-            shortcut,
-            action: { type: "toggle-overlay" },
-          });
-        }
-      }
-    }
-
-    if (process.platform === "linux") {
-      this.register();
-    }
+    this.registerFixedShortcuts();
   }
 
-  private register() {
+  private registerFixedShortcuts() {
     this.unregister();
 
-    for (const entry of this.actions) {
-      this.registerAction(entry);
-
-      if (entry.action.type === "test-only") {
-        globalShortcut.unregister(shortcutToElectron(entry.shortcut));
-      }
-    }
-
-    this.isRegistered = true;
-  }
-
-  private registerAction(entry: ShortcutAction) {
-    const accelerators = getElectronAccelerators(entry);
-
-    for (const accelerator of accelerators) {
-      const isOk = globalShortcut.register(accelerator, () => {
+    for (const entry of FIXED_SHORTCUTS) {
+      const isOk = globalShortcut.register(entry.accelerator, () => {
         this.runAction(entry);
       });
 
       if (!isOk) {
-        const message = `error [Shortcuts] Failed to register a shortcut "${entry.shortcut}" (${accelerator}). It is already registered by another application or rejected by the desktop.`;
+        const message = `error [Shortcuts] Failed to register fixed KDE Wayland shortcut "${entry.shortcut}" (${entry.accelerator}). It is already registered by KDE or rejected by the desktop portal.`;
         this.logger.write(message);
         console.warn(message);
-      } else if (this.logKeys || isWaylandMode()) {
-        this.logger.write(
-          `${isWaylandMode() ? "info" : "debug"} [Shortcuts] Registered "${entry.shortcut}" (${accelerator}).`,
-        );
+        continue;
       }
+
+      this.logger.write(
+        `info [Shortcuts] Registered fixed KDE Wayland shortcut "${entry.shortcut}" (${entry.accelerator}).`,
+      );
     }
+
+    this.isRegistered = true;
   }
 
   private unregister() {
@@ -274,52 +139,29 @@ export class Shortcuts {
       this.logger.write(`debug [Shortcuts] Action type: ${entry.action.type}`);
     }
 
-    if (!isWaylandMode() && entry.keepModKeys) {
-      const nonModKey = entry.shortcut
-        .split(" + ")
-        .filter((key) => !isModKey(key))[0];
-      uIOhook.keyToggle(UiohookKey[nonModKey as UiohookKeyT], "up");
-    } else if (!isWaylandMode()) {
-      entry.shortcut
-        .split(" + ")
-        .reverse()
-        .forEach((key) => {
-          uIOhook.keyToggle(UiohookKey[key as UiohookKeyT], "up");
-        });
-    }
-
     if (entry.action.type === "toggle-overlay") {
       this.areaTracker.removeListeners();
       this.overlay.toggleActiveState();
     } else if (entry.action.type === "paste-in-chat") {
-      if (isWaylandMode()) {
-        this.logger.write(
-          `info [Wayland] Running chat command "${entry.action.text}" from "${entry.shortcut}".`,
-        );
-        typeInChatWayland(
-          entry.action.text,
-          entry.action.send,
-          this.clipboard,
-          this.overlay,
-          entry.shortcut.split(" + "),
-        );
-      } else {
-        typeInChat(entry.action.text, entry.action.send, this.clipboard);
-      }
+      this.logger.write(
+        `info [Wayland] Running chat command "${entry.action.text}" from "${entry.shortcut}".`,
+      );
+      typeInChatWayland(
+        entry.action.text,
+        entry.action.send,
+        this.clipboard,
+        this.overlay,
+        entry.shortcut.split(" + "),
+      );
     } else if (entry.action.type === "trigger-event") {
       this.server.sendEventTo("broadcast", {
         name: "MAIN->CLIENT::widget-action",
         payload: { target: entry.action.target },
       });
     } else if (entry.action.type === "stash-search") {
-      if (isWaylandMode()) {
-        stashSearchWayland(entry.action.text, this.clipboard, this.overlay);
-      } else {
-        stashSearch(entry.action.text, this.clipboard, this.overlay);
-      }
+      stashSearchWayland(entry.action.text, this.clipboard, this.overlay);
     } else if (entry.action.type === "copy-item") {
       const { action } = entry;
-
       const pressPosition = screen.getCursorScreenPoint();
 
       this.clipboard
@@ -335,262 +177,22 @@ export class Shortcuts {
               focusOverlay: Boolean(action.focusOverlay),
             },
           });
-          if (isWaylandMode() && !action.focusOverlay) {
-            this.overlay.showPassiveOverlay();
-          } else if (
-            action.focusOverlay &&
-            (isWaylandMode() || this.overlay.wasUsedRecently)
-          ) {
-            this.overlay.assertOverlayActive();
-          }
+
+          this.overlay.showPassiveOverlay();
         })
         .catch(() => {});
 
-      if (isWaylandMode()) {
-        const copy = () => {
-          pressWaylandCopyItemText(undefined, this.gameConfig.showModsKey);
-        };
-        if (action.focusOverlay) {
-          setTimeout(copy, 50);
-        } else {
-          copy();
-        }
-        if (action.focusOverlay) {
-          setTimeout(() => {
-            this.overlay.assertOverlayActive();
-          }, 150);
-        }
-      } else {
-        pressKeysToCopyItemText(
-          entry.keepModKeys
-            ? entry.shortcut.split(" + ").filter((key) => isModKey(key))
-            : undefined,
-          this.gameConfig.showModsKey,
-        );
-      }
+      const copy = () => {
+        pressWaylandCopyItemText(undefined, this.gameConfig.showModsKey);
+      };
+      copy();
     } else if (
       entry.action.type === "ocr-text" &&
       entry.action.target === "heist-gems"
     ) {
-      if (process.platform !== "win32") return;
-
-      const { action } = entry;
-      const pressTime = Date.now();
-      const imageData = this.poeWindow.screenshot();
-      this.ocrWorker
-        .findHeistGems({
-          width: this.poeWindow.bounds.width,
-          height: this.poeWindow.bounds.height,
-          data: imageData,
-        })
-        .then((result) => {
-          this.server.sendEventTo("last-active", {
-            name: "MAIN->CLIENT::ocr-text",
-            payload: {
-              target: action.target,
-              pressTime,
-              ocrTime: result.elapsed,
-              paragraphs: result.recognized.map((p) => p.text),
-            },
-          });
-        })
-        .catch(() => {});
+      this.logger.write(
+        "warn [Shortcuts] Heist gem OCR is disabled in the Linux Wayland fork.",
+      );
     }
   }
-}
-
-function pressKeysToCopyItemText(
-  pressedModKeys: string[] = [],
-  showModsKey: string,
-) {
-  let keys = mergeTwoHotkeys("Ctrl + C", showModsKey).split(" + ");
-  keys = keys.filter((key) => key !== "C");
-  if (process.platform !== "darwin") {
-    // On non-Mac platforms, don't toggle keys that are already being pressed.
-    //
-    // For unknown reasons, we need to toggle pressed keys on Mac for advanced
-    // mod descriptions to be copied. You can test this by setting the shortcut
-    // to "Alt + any letter". They'll work with this line, but not if it's
-    // commented out.
-    keys = keys.filter((key) => !pressedModKeys.includes(key));
-  }
-
-  for (const key of keys) {
-    uIOhook.keyToggle(UiohookKey[key as UiohookKeyT], "down");
-  }
-
-  // finally press `C` to copy text
-  uIOhook.keyTap(UiohookKey.C);
-
-  // Timeout to enforce release of keys
-  // Game was dropping the release inputs for some reason
-  setTimeout(() => {
-    keys.reverse();
-    for (const key of keys) {
-      uIOhook.keyToggle(UiohookKey[key as UiohookKeyT], "up");
-    }
-  }, 10);
-}
-
-function isStashArea(mouse: UiohookWheelEvent, poeWindow: GameWindow): boolean {
-  if (
-    !poeWindow.bounds ||
-    mouse.x > poeWindow.bounds.x + poeWindow.uiSidebarWidth
-  )
-    return false;
-
-  return (
-    mouse.y > poeWindow.bounds.y + (poeWindow.bounds.height * 154) / 1600 &&
-    mouse.y < poeWindow.bounds.y + (poeWindow.bounds.height * 1192) / 1600
-  );
-}
-
-function eventToString(e: {
-  keycode: number;
-  ctrlKey: boolean;
-  altKey: boolean;
-  shiftKey: boolean;
-}) {
-  const { ctrlKey, shiftKey, altKey } = e;
-
-  let code = UiohookToName[e.keycode];
-  if (!code) return "not_supported_key";
-
-  if (code === "Shift" || code === "Alt" || code === "Ctrl") return code;
-
-  if (ctrlKey && shiftKey && altKey) code = `Ctrl + Shift + Alt + ${code}`;
-  else if (shiftKey && altKey) code = `Shift + Alt + ${code}`;
-  else if (ctrlKey && shiftKey) code = `Ctrl + Shift + ${code}`;
-  else if (ctrlKey && altKey) code = `Ctrl + Alt + ${code}`;
-  else if (altKey) code = `Alt + ${code}`;
-  else if (ctrlKey) code = `Ctrl + ${code}`;
-  else if (shiftKey) code = `Shift + ${code}`;
-
-  return code;
-}
-
-function shortcutToElectron(shortcut: string) {
-  return shortcut
-    .split(" + ")
-    .map((k) => KeyToElectron[k as keyof typeof KeyToElectron])
-    .join("+");
-}
-
-function getElectronAccelerators(entry: ShortcutAction) {
-  if (isWaylandMode()) {
-    const defaultAccelerator = getWaylandDefaultAccelerator(entry.shortcut);
-    if (defaultAccelerator) {
-      return [defaultAccelerator];
-    }
-  }
-
-  if (!isWaylandMode() || entry.action.type !== "toggle-overlay") {
-    return [shortcutToElectron(entry.shortcut)];
-  }
-
-  const accelerators = new Set([shortcutToElectron(entry.shortcut)]);
-
-  for (const accelerator of getWaylandOverlayAccelerators()) {
-    accelerators.add(accelerator);
-  }
-
-  return Array.from(accelerators);
-}
-
-function getWaylandDefaultAccelerator(shortcut: string) {
-  switch (shortcut) {
-    case "Ctrl + Alt + P":
-      return "Ctrl+Alt+P";
-    case "Ctrl + D":
-      return "Ctrl+D";
-    case "F5":
-      return "F5";
-    case "F9":
-      return "F9";
-    default:
-      return undefined;
-  }
-}
-
-function withWaylandDefaultActions(actions: ShortcutAction[]) {
-  actions = actions.filter(
-    (action) =>
-      !["D", "Alt + D", "Ctrl + D", "Ctrl + Alt + D"].includes(action.shortcut),
-  );
-
-  const defaults: ShortcutAction[] = [
-    {
-      shortcut: "Ctrl + D",
-      action: { type: "copy-item", target: "price-check", focusOverlay: true },
-    },
-    {
-      shortcut: "F5",
-      action: { type: "paste-in-chat", text: "/hideout", send: true },
-    },
-    {
-      shortcut: "F9",
-      action: { type: "paste-in-chat", text: "/exit", send: true },
-    },
-  ];
-
-  for (const entry of defaults) {
-    if (!actions.some((action) => action.shortcut === entry.shortcut)) {
-      actions.push(entry);
-    }
-  }
-
-  return actions;
-}
-
-function shortcutToUiohook(shortcut: string): UiohookShortcut | null {
-  let keycode: number | undefined;
-  let ctrlKey = false;
-  let altKey = false;
-  let shiftKey = false;
-
-  for (const key of shortcut.split(" + ")) {
-    if (key === "Ctrl") {
-      ctrlKey = true;
-    } else if (key === "Alt") {
-      altKey = true;
-    } else if (key === "Shift") {
-      shiftKey = true;
-    } else {
-      keycode = UiohookKey[key as UiohookKeyT] as number | undefined;
-    }
-  }
-
-  if (!keycode) return null;
-  return { keycode, ctrlKey, altKey, shiftKey };
-}
-
-function matchesShortcut(
-  event: {
-    keycode: number;
-    ctrlKey: boolean;
-    altKey: boolean;
-    shiftKey: boolean;
-  },
-  shortcut: UiohookShortcut,
-) {
-  return (
-    event.keycode === shortcut.keycode &&
-    event.ctrlKey === shortcut.ctrlKey &&
-    event.altKey === shortcut.altKey &&
-    event.shiftKey === shortcut.shiftKey
-  );
-}
-
-function getWaylandOverlayAliases() {
-  return (process.env.EXILED_WAYLAND_OVERLAY_ALIASES || "Ctrl + Alt + P")
-    .split(",")
-    .map((shortcut) => shortcut.trim())
-    .filter(Boolean);
-}
-
-function getWaylandOverlayAccelerators() {
-  return (process.env.EXILED_WAYLAND_OVERLAY_ACCELERATORS || "Ctrl+Alt+P")
-    .split(",")
-    .map((accelerator) => accelerator.trim())
-    .filter(Boolean);
 }

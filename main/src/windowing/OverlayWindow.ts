@@ -19,6 +19,8 @@ import type { ServerEvents } from "../server";
 import type { Logger } from "../RemoteLogger";
 import type { GameWindow } from "./GameWindow";
 
+const WAYLAND_OVERLAY_TITLE = "Exiled Exchange 2 Overlay";
+
 export class OverlayWindow {
   public isInteractable = false;
   public wasUsedRecently = true;
@@ -51,14 +53,17 @@ export class OverlayWindow {
     const initialBounds = isWaylandMode() ? getWaylandDisplayBounds() : null;
 
     this.window = new BrowserWindow({
+      title: isWaylandMode() ? WAYLAND_OVERLAY_TITLE : undefined,
       icon: path.join(__dirname, process.env.STATIC!, "icon.png"),
       ...(isWaylandMode()
         ? {
             ...initialBounds,
             show: false,
             frame: false,
+            fullscreen: true,
             transparent: true,
             alwaysOnTop: true,
+            focusable: false,
             skipTaskbar: true,
             backgroundColor: "#00000000",
           }
@@ -71,6 +76,9 @@ export class OverlayWindow {
         spellcheck: false,
       },
     });
+    if (isWaylandMode()) {
+      this.window.setTitle(WAYLAND_OVERLAY_TITLE);
+    }
 
     this.window.setMenu(
       Menu.buildFromTemplate([
@@ -155,6 +163,7 @@ export class OverlayWindow {
       this.isInteractable = false;
       if (isWaylandMode()) {
         this.window?.hide();
+        this.window?.setFocusable(false);
         this.window?.setIgnoreMouseEvents(false);
         this.focusWaylandGameWindow();
       } else {
@@ -246,34 +255,41 @@ export class OverlayWindow {
   private showWaylandOverlay({ interactive }: { interactive: boolean }) {
     if (!this.window) return;
 
-    this.applyWaylandBounds();
+    this.prepareWaylandFullscreen();
+    this.window.setTitle(WAYLAND_OVERLAY_TITLE);
     this.window.setFocusable(interactive);
     this.window.setIgnoreMouseEvents(!interactive, { forward: true });
     this.window.setAlwaysOnTop(true);
     this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     if (interactive) {
       this.window.show();
+      this.window.moveTop();
+      this.window.focus();
     } else {
       this.window.showInactive();
     }
-    this.window.moveTop();
-    if (interactive) this.window.focus();
+    this.enforceWaylandOverlayKWinState();
 
     // On Wayland, bounds set before the first map can be ignored by the
     // compositor. Reapply once the surface is visible to avoid a tiny first open.
-    setTimeout(() => this.raiseWaylandOverlay({ interactive }), 0);
-    setTimeout(() => this.raiseWaylandOverlay({ interactive }), 50);
+    setTimeout(() => {
+      this.raiseWaylandOverlay({ interactive });
+    }, 0);
+    setTimeout(() => {
+      this.raiseWaylandOverlay({ interactive });
+    }, 50);
   }
 
   private prewarmWaylandOverlay() {
     if (!this.window) return;
 
-    this.applyWaylandBounds();
+    this.prepareWaylandFullscreen();
+    this.window.setTitle(WAYLAND_OVERLAY_TITLE);
     this.window.setOpacity(0);
     this.window.setFocusable(false);
     this.window.setIgnoreMouseEvents(true, { forward: true });
     this.window.showInactive();
-    this.window.moveTop();
+    this.enforceWaylandOverlayKWinState();
 
     setTimeout(() => {
       if (!this.window || this.isInteractable) return;
@@ -290,14 +306,28 @@ export class OverlayWindow {
     this.window?.setBounds(bounds);
   }
 
+  private prepareWaylandFullscreen() {
+    if (!this.window) return;
+
+    if (!this.window.isFullScreen()) {
+      this.window.setFullScreen(true);
+    }
+    this.applyWaylandBounds();
+  }
+
   private raiseWaylandOverlay({ interactive }: { interactive: boolean }) {
     if (!this.window) return;
     if (!interactive && this.isInteractable) return;
 
-    this.applyWaylandBounds();
+    if (!this.window.isFullScreen()) {
+      this.prepareWaylandFullscreen();
+    }
     this.window.setAlwaysOnTop(true);
-    this.window.moveTop();
-    if (interactive) this.window.focus();
+    if (interactive) {
+      this.window.moveTop();
+      this.window.focus();
+    }
+    this.enforceWaylandOverlayKWinState();
   }
 
   private clearPassiveHideTimer() {
@@ -309,6 +339,7 @@ export class OverlayWindow {
 
   private hideWaylandPassiveOverlay() {
     this.window?.hide();
+    this.window?.setFocusable(false);
     this.window?.setIgnoreMouseEvents(false);
     this.server.sendEventTo("broadcast", {
       name: "MAIN->OVERLAY::hide-exclusive-widget",
@@ -335,9 +366,39 @@ for (const window of windows) {
   }
 }
 `;
+    this.runKWinScript("focus-poe", script, "KWin focus script");
+  }
+
+  private enforceWaylandOverlayKWinState() {
+    if (!String(process.env.XDG_CURRENT_DESKTOP || "").includes("KDE")) return;
+
+    const title = WAYLAND_OVERLAY_TITLE.replace(/\\/g, "\\\\").replace(
+      /"/g,
+      '\\"',
+    );
+    const script = `
+const title = "${title}";
+const windows = workspace.windowList ? workspace.windowList() : workspace.clientList();
+for (const window of windows) {
+  const caption = String(window.caption || window.captionNormal || "");
+  if (!caption.includes(title)) continue;
+
+  if ("fullScreen" in window) window.fullScreen = true;
+  if ("fullscreen" in window) window.fullscreen = true;
+  if ("keepAbove" in window) window.keepAbove = true;
+  if ("noBorder" in window) window.noBorder = true;
+  if ("skipTaskbar" in window) window.skipTaskbar = true;
+  if ("skipPager" in window) window.skipPager = true;
+  break;
+}
+`;
+    this.runKWinScript("overlay-state", script, "KWin overlay state script");
+  }
+
+  private runKWinScript(name: string, script: string, logLabel: string) {
     const scriptPath = path.join(
       os.tmpdir(),
-      `exiled-exchange-focus-poe-${process.pid}.js`,
+      `exiled-exchange-${name}-${process.pid}.js`,
     );
 
     try {
@@ -347,22 +408,22 @@ for (const window of windows) {
         "/Scripting",
         "org.kde.kwin.Scripting.loadScript",
         scriptPath,
-        `exiled-exchange-focus-poe-${process.pid}-${Date.now()}`,
+        `exiled-exchange-${name}-${process.pid}-${Date.now()}`,
       ]);
 
       let scriptId = "";
-      load.stdout.on("data", (data) => {
+      load.stdout.on("data", (data: Buffer) => {
         scriptId += data.toString();
       });
       load.on("error", (error) => {
         this.logger.write(
-          `error [Wayland] Failed to run qdbus6 for KWin focus: ${error.message}`,
+          `error [Wayland] Failed to run qdbus6 for ${logLabel}: ${error.message}`,
         );
       });
       load.on("close", (code) => {
         if (code !== 0) {
           this.logger.write(
-            `error [Wayland] KWin focus script failed to load with code ${code}.`,
+            `error [Wayland] ${logLabel} failed to load with code ${code}.`,
           );
           return;
         }
@@ -370,7 +431,7 @@ for (const window of windows) {
         const id = scriptId.trim();
         if (!id) {
           this.logger.write(
-            "error [Wayland] KWin focus script loaded without returning a script id.",
+            `error [Wayland] ${logLabel} loaded without returning a script id.`,
           );
           return;
         }
@@ -383,13 +444,13 @@ for (const window of windows) {
           ]);
           run.on("error", (error) => {
             this.logger.write(
-              `error [Wayland] Failed to run KWin focus script at ${objectPath}: ${error.message}`,
+              `error [Wayland] Failed to run ${logLabel} at ${objectPath}: ${error.message}`,
             );
           });
         }
       });
     } catch (error) {
-      const message = `[Wayland] Failed to prepare KWin focus script: ${error}`;
+      const message = `[Wayland] Failed to prepare ${logLabel}: ${error}`;
       this.logger.write(`error ${message}`);
       console.warn(message);
     }

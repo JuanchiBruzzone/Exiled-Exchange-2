@@ -7,33 +7,24 @@ import { guessFileLocation } from "./utils";
 import type { Logger } from "../RemoteLogger";
 import type { ServerEvents } from "../server";
 
-const POSSIBLE_PATH =
-  process.platform === "win32"
-    ? [
-        path.join(
-          app.getPath("documents"),
-          "My Games\\Path of Exile 2\\poe2_production_Config.ini",
-        ),
-      ]
-    : process.platform === "linux"
-      ? [
-          path.join(
-            app.getPath("documents"),
-            "My Games/Path of Exile 2/poe2_production_Config.ini",
-          ),
-          path.join(
-            app.getPath("home"),
-            ".local/share/Steam/steamapps/compatdata/2694490/pfx/drive_c/users/steamuser/Documents/My Games/Path of Exile 2/poe2_production_Config.ini",
-          ),
-        ]
-      : process.platform === "darwin"
-        ? [
-            path.join(
-              app.getPath("appData"),
-              "Path of Exile 2/Preferences/poe2_production_Config.ini",
-            ),
-          ]
-        : [];
+const POSSIBLE_PATH = [
+  path.join(
+    app.getPath("documents"),
+    "My Games/Path of Exile 2/poe2_production_Config.ini",
+  ),
+  path.join(
+    app.getPath("home"),
+    ".steam/steam/steamapps/compatdata/2694490/pfx/drive_c/users/steamuser/Documents/My Games/Path of Exile 2/poe2_production_Config.ini",
+  ),
+  path.join(
+    app.getPath("home"),
+    ".local/share/Steam/steamapps/compatdata/2694490/pfx/drive_c/users/steamuser/Documents/My Games/Path of Exile 2/poe2_production_Config.ini",
+  ),
+  path.join(
+    app.getPath("home"),
+    ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/compatdata/2694490/pfx/drive_c/users/steamuser/Documents/My Games/Path of Exile 2/poe2_production_Config.ini",
+  ),
+];
 
 export class GameConfig {
   private _wantedPath: string | null = null;

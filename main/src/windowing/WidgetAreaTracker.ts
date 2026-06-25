@@ -14,48 +14,35 @@ export class WidgetAreaTracker {
   ) {
     this.server.onEventAnyClient("OVERLAY->MAIN::track-area", (opts) => {
       this.holdKey = opts.holdKey;
+      this.closeThreshold = opts.closeThreshold * opts.dpr;
 
-      if (process.platform === "win32") {
-        this.closeThreshold = opts.closeThreshold * opts.dpr;
-        this.from = screen.dipToScreenPoint(opts.from);
-        // NOTE: bug in electron accepting only integers
-        this.area = screen.dipToScreenRect(null, roundRect(opts.area));
-      } else if (process.platform === "linux") {
-        this.closeThreshold = opts.closeThreshold * opts.dpr;
+      const display = screen.getDisplayNearestPoint(opts.from);
+      const scaleX = (value: number) =>
+        scaleNumberByDisplay(
+          value,
+          display.bounds.x,
+          display.nativeOrigin.x,
+          display.scaleFactor,
+        );
+      const scaleY = (value: number) =>
+        scaleNumberByDisplay(
+          value,
+          display.bounds.y,
+          display.nativeOrigin.y,
+          display.scaleFactor,
+        );
 
-        const display = screen.getDisplayNearestPoint(opts.from);
-        const scaleX = (value: number) =>
-          scaleNumberByDisplay(
-            value,
-            display.bounds.x,
-            display.nativeOrigin.x,
-            display.scaleFactor,
-          );
-        const scaleY = (value: number) =>
-          scaleNumberByDisplay(
-            value,
-            display.bounds.y,
-            display.nativeOrigin.y,
-            display.scaleFactor,
-          );
+      this.from = {
+        x: scaleX(opts.from.x),
+        y: scaleY(opts.from.y),
+      };
 
-        // scale coordinates using the display scale factor.
-        this.from = {
-          x: scaleX(opts.from.x),
-          y: scaleY(opts.from.y),
-        };
-
-        this.area = roundRect({
-          x: scaleX(opts.area.x),
-          y: scaleY(opts.area.y),
-          width: opts.area.width * display.scaleFactor,
-          height: opts.area.height * display.scaleFactor,
-        });
-      } else {
-        this.closeThreshold = opts.closeThreshold;
-        this.from = opts.from;
-        this.area = opts.area;
-      }
+      this.area = roundRect({
+        x: scaleX(opts.area.x),
+        y: scaleY(opts.area.y),
+        width: opts.area.width * display.scaleFactor,
+        height: opts.area.height * display.scaleFactor,
+      });
 
       this.removeListeners();
       uIOhook.addListener("mousemove", this.handleMouseMove);

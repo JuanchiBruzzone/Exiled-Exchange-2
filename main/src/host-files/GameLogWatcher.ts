@@ -6,31 +6,24 @@ import { ServerEvents } from "../server";
 import { Logger } from "../RemoteLogger";
 import { FileWriter } from "./FileWriter";
 
-const POSSIBLE_PATH =
-  process.platform === "win32"
-    ? [
-        "C:\\Program Files (x86)\\Grinding Gear Games\\Path of Exile 2\\logs\\Client.txt",
-        "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile 2\\logs\\Client.txt",
-      ]
-    : process.platform === "linux"
-      ? [
-          path.join(
-            app.getPath("home"),
-            ".wine/drive_c/Program Files (x86)/Grinding Gear Games/Path of Exile 2/logs/Client.txt",
-          ),
-          path.join(
-            app.getPath("home"),
-            ".local/share/Steam/steamapps/common/Path of Exile 2/logs/Client.txt",
-          ),
-        ]
-      : process.platform === "darwin"
-        ? [
-            path.join(
-              app.getPath("home"),
-              "Library/Caches/com.GGG.PathOfExile/Logs/Client.txt",
-            ),
-          ]
-        : [];
+const POSSIBLE_PATH = [
+  path.join(
+    app.getPath("home"),
+    ".steam/steam/steamapps/common/Path of Exile 2/logs/Client.txt",
+  ),
+  path.join(
+    app.getPath("home"),
+    ".local/share/Steam/steamapps/common/Path of Exile 2/logs/Client.txt",
+  ),
+  path.join(
+    app.getPath("home"),
+    ".var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/Path of Exile 2/logs/Client.txt",
+  ),
+  path.join(
+    app.getPath("home"),
+    ".wine/drive_c/Program Files (x86)/Grinding Gear Games/Path of Exile 2/logs/Client.txt",
+  ),
+];
 
 export class GameLogWatcher {
   private _wantedPath: string | null = null;
