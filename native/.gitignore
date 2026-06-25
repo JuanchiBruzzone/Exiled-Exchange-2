@@ -1,0 +1,6 @@
+/.qmake.stash
+/Makefile
+/*.o
+/moc_*.cpp
+/moc_predefs.h
+/exiled-exchange-native
