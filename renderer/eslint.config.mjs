@@ -18,13 +18,6 @@ export default defineConfigWithVueTs(
   prettier,
 
   {
-    files: ["src/main/**/*"],
-    languageOptions: {
-      globals: { node: true },
-    },
-  },
-
-  {
     files: ["**/*.vue"],
     rules: {
       "import-x/first": "off",

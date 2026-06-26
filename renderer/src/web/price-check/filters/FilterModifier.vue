@@ -63,6 +63,7 @@
               ref="inputMinEl"
               v-model.number="inputMin"
               @focus="inputFocus($event, 'min')"
+              @mousedown.right.prevent="clearInput($event, 'min')"
               @mousewheel.stop
             />
             <input
@@ -76,6 +77,7 @@
               ref="inputMaxEl"
               v-model.number="inputMax"
               @focus="inputFocus($event, 'max')"
+              @mousedown.right.prevent="clearInput($event, 'max')"
               @mousewheel.stop
             />
           </div>
@@ -266,6 +268,18 @@ export default defineComponent({
       props.filter.disabled = false;
     }
 
+    function clearInput(e: MouseEvent, which: "min" | "max") {
+      const target = e.target as HTMLInputElement;
+
+      if (which === "min") {
+        inputMin.value = "";
+      } else {
+        inputMax.value = "";
+      }
+
+      target.focus();
+    }
+
     function toggleFilter(e: MouseEvent) {
       if (e.detail === 0) {
         ctx.emit("submit");
@@ -286,6 +300,25 @@ export default defineComponent({
       }
     });
 
+    const inputMin = computed({
+      // this can be undefined
+      get(): number | "" {
+        return props.filter.roll!.min!;
+      },
+      set(value: "" | number) {
+        props.filter.roll!.min = value;
+      },
+    });
+    const inputMax = computed({
+      // this can be undefined
+      get(): number | "" {
+        return props.filter.roll!.max!;
+      },
+      set(value: "" | number) {
+        props.filter.roll!.max = value;
+      },
+    });
+
     const { t } = useI18n();
 
     return {
@@ -297,24 +330,8 @@ export default defineComponent({
       inputMinEl,
       inputMaxEl,
       sliderValue,
-      inputMin: computed({
-        // this can be undefined
-        get(): number | "" {
-          return props.filter.roll!.min!;
-        },
-        set(value: "" | number) {
-          props.filter.roll!.min = value;
-        },
-      }),
-      inputMax: computed({
-        // this can be undefined
-        get(): number | "" {
-          return props.filter.roll!.max!;
-        },
-        set(value: "" | number) {
-          props.filter.roll!.max = value;
-        },
-      }),
+      inputMin,
+      inputMax,
       tag: computed(() => props.filter.tag),
       // TODO: change
       changeStep: computed(() => (props.filter.roll!.dp ? 0.01 : 1)),
@@ -363,6 +380,7 @@ export default defineComponent({
             props.filter.sources[0].modifier.info.rank != null),
       ),
       inputFocus,
+      clearInput,
       toggleFilter,
       showShortText: computed(
         () =>

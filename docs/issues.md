@@ -2,52 +2,39 @@
 title: Common issues
 ---
 
-1. Read the [requirements](/download) again.
+1. Confirm you are in a KDE Plasma Wayland session.
 
-    Please do it. Did you know that updating Geforce Experience can reset game
-    video settings to "optimized profile" and silently enable Fullscreen mode?
+    Check `echo $XDG_CURRENT_DESKTOP` and `echo $XDG_SESSION_TYPE`. This fork expects KDE and `wayland`.
 
-2. [Check the logs](/faq).
+2. Confirm `ydotoold` is running.
 
-3. Are you playing with Vulkan renderer? Update GPU drivers.
+    Chat commands, copy actions, and stash search need `ydotool` input injection on Wayland.
 
-    If EE2 works for you with DirectX11/12 renderer,
-    then problem is old Vulkan drivers for sure.
+3. Confirm the native KDE/Qt dependencies are installed.
 
-4. Delete `%appdata%\exiled-exchange-2`
+    The native host uses KDE `KGlobalAccel`, LayerShellQt, and Qt WebEngine.
 
-    If needed, backup `apt-data` folder with your configuration inside.
+4. Confirm PoE2 is not using exclusive fullscreen.
 
-5. **Close all applications** that you can in tray and task manager.
+    Use Windowed or Windowed Fullscreen.
 
-    Launch them later one at a time to identify **conflict**.
+5. Check the logs in Settings -> Debug.
 
-6. Restart Exiled Exchange 2.
+6. Delete `~/.config/exiled-exchange-native` if configuration migration is broken.
 
-    *(don't forget to quit first, otherwise launching second instance will do nothing).*
+    Back up `apt-data` first if you need your configuration.
 
-7. As last resort, go to Discord. But if you don't describe something specific about
-    your problem, **you will most likely be directed to this page**.
+7. Restart Exiled Exchange 2 Linux and PoE2.
 
 ---
 
-- 🔥[There are no stats to select from when price checking](/no-item-mods)
-- [Failed to load leagues](/failed-load-leagues)
-- [How to remove the stopwatch in center of screen?](https://github.com/SnosMe/awakened-poe-trade/issues/219)
-- [Sends a whisper when doing price-check](https://github.com/SnosMe/awakened-poe-trade/issues/178)
-
 ## PoE2
 
-- 🔥[Query is too complex](/complex-query)
-- 🔥[Unexpected token ..... is not valid JSON](/invalid-json)
+- [Query is too complex](/complex-query)
+- [Unexpected token ..... is not valid JSON](/invalid-json)
 
-## Windows
+## Linux / KDE Plasma Wayland
 
-- 🔥[Nothing happens when I try to price check](/nothing-happens)
-- [Can't open settings via tray icon when game is active](https://github.com/SnosMe/awakened-poe-trade/issues/265)
-
-## Linux
-
-- [Tray icon is not shown](https://github.com/SnosMe/awakened-poe-trade/issues/106)
-- 🔥[Screen is black](https://github.com/SnosMe/awakened-poe-trade/issues/185)
-- [Some issues with running in Wayland](https://github.com/Kvan7/Exiled-Exchange-2/issues/673)
+- Tray icon visibility depends on your Plasma system tray settings.
+- If the overlay does not behave like an overlay, verify you are on KDE Plasma Wayland and LayerShellQt is installed.
+- If hotkeys fire but no game input appears, verify `ydotoold` is running and accessible by your user.

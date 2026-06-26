@@ -43,6 +43,7 @@ export interface Stat {
   trade: {
     inverted?: true;
     option?: true;
+    count?: true;
     ids: {
       [type: string]: string[];
     };
@@ -84,6 +85,7 @@ export interface BaseType {
   };
   map?: {
     screenshot?: string;
+    tier?: number;
   };
   gem?: {
     vaal?: true;
@@ -96,13 +98,15 @@ export interface BaseType {
     ev?: [min: number, max: number];
     es?: [min: number, max: number];
   };
-  augment?: Array<{
-    categories: ItemCategory[];
-    string: string;
-    values: number[];
-    tradeId?: string[];
-  }>;
+  augment?: AugmentLineData[];
   tags: string[];
+}
+
+export interface AugmentLineData {
+  categories: ItemCategory[];
+  string: string;
+  values: number[];
+  tradeId?: string[];
 }
 
 export interface TranslationDict {
@@ -205,6 +209,21 @@ export interface TranslationDict {
   REQUIRES: string;
   CHARM_SLOTS: string;
   BASE_SPIRIT: string;
+  LIFE_TAG: string;
+  MANA_TAG: string;
+  ARMOUR_TAG: string;
+  EVASION_TAG: string;
+  ENERGY_SHIELD_TAG: string;
+  PHYSICAL_TAG: string;
+  FIRE_TAG: string;
+  COLD_TAG: string;
+  LIGHTNING_TAG: string;
+  CHAOS_TAG: string;
+  ATTACK_TAG: string;
+  CASTER_TAG: string;
+  SPEED_TAG: string;
+  ATTRIBUTE_TAG: string;
+  MINION_TAG: string;
   // ---
   CHAT_SYSTEM: RegExp;
   CHAT_TRADE: RegExp;
@@ -226,6 +245,8 @@ export interface TranslationDict {
   WAYSTONE_RARE_MONSTERS: string;
   WAYSTONE_DROP_CHANCE: string;
   WAYSTONE_RARITY: string;
+  WAYSTONE_MONSTER_RARITY: string;
+  WAYSTONE_EFFECTIVENESS: string;
   // WAYSTONE_GOLD: string;
   TIMELESS_RADIUS: string;
   TIMELESS_SMALL_PASSIVES: string;
@@ -239,6 +260,8 @@ export interface TranslationDict {
   LOG_ZONE_GEN: RegExp;
   DOUBLE_CORRUPTED: string;
   IMPLICIT_MODIFIER: string;
+  ENCHANT_MODIFIER: string;
+  CORRUPTED_MODIFIER: string;
   REQUIRES_LINE: RegExp;
   UNIQUE_MODIFIER: string;
   VAAL_UNIQUE_MODIFIER: string;
@@ -293,6 +316,7 @@ export interface AugmentDataByAugment {
 }
 export interface AugmentDataByTradeId {
   [tradeId: string]: Array<{
+    refName: string;
     augment: string;
     baseStat: string;
     values: number[];
@@ -300,4 +324,26 @@ export interface AugmentDataByTradeId {
     categories: ItemCategory[];
     icon: string;
   }>;
+}
+
+export interface AugmentGroup<T> {
+  Rune: {
+    Lesser: T[];
+    Normal: T[];
+    Greater: T[];
+    Perfect: T[];
+    Other: T[];
+  };
+  Legacy: T[];
+  SoulCore: {
+    Normal: T[];
+    Special: T[];
+  };
+  Idol: T[];
+  Other: T[];
+}
+
+export interface CatalystGroup<T> {
+  Normal: T;
+  Refined: T;
 }

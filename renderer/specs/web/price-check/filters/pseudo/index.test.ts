@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTests } from "@specs/vitest.setup";
 import { init, Stat, StatBetter } from "@/assets/data";
 import { ModifierType, StatCalculated } from "@/parser/modifiers";
-import { __testExports, filterPseudo } from "@/web/price-check/filters/pseudo";
+import { testExports, filterPseudo } from "@/web/price-check/filters/pseudo";
 import { FiltersCreationContext } from "@/web/price-check/filters/create-stat-filters";
 import { ParsedItem } from "@/parser";
 
@@ -17,7 +17,7 @@ describe("filterPseudoSources", () => {
     const stats: StatCalculated[] = [];
     const mapFn = vi.fn();
     mapFn.mockImplementation(() => true);
-    const result = __testExports.filterPseudoSources(stats, mapFn);
+    const result = testExports.filterPseudoSources(stats, mapFn);
 
     expect(result).toHaveLength(0);
   });
@@ -30,7 +30,7 @@ describe("filterPseudoSources", () => {
     ] as unknown as StatCalculated[];
     const mapFn = vi.fn();
     mapFn.mockImplementation(() => true);
-    const result = __testExports.filterPseudoSources(stats, mapFn);
+    const result = testExports.filterPseudoSources(stats, mapFn);
 
     expect(result).toHaveLength(0);
   });
@@ -44,7 +44,7 @@ describe("filterPseudoSources", () => {
     const mapFn = vi.fn();
     mapFn.mockImplementation(() => true);
 
-    const result = __testExports.filterPseudoSources(stats, mapFn);
+    const result = testExports.filterPseudoSources(stats, mapFn);
     const expected = Array.from({ length: 4 }, () => true);
 
     expect(result).toEqual(expected);
@@ -67,7 +67,7 @@ describe("filterPseudoSources", () => {
       }
     });
 
-    const result = __testExports.filterPseudoSources(stats, mapFn);
+    const result = testExports.filterPseudoSources(stats, mapFn);
     const expected = [ModifierType.Explicit, ModifierType.Enchant];
 
     expect(result).toEqual(expected);

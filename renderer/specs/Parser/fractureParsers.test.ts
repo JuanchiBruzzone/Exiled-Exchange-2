@@ -1,4 +1,4 @@
-import { __testExports, ParserState } from "@/parser/Parser";
+import { testExports, ParserState } from "@/parser/Parser";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setupTests } from "@specs/vitest.setup";
 import { init } from "@/assets/data";
@@ -27,7 +27,7 @@ describe("Parse Fractured Items", () => {
         },
       ],
     } as unknown as ParserState;
-    __testExports.parseFractured(parsedItem);
+    testExports.parseFractured(parsedItem);
     expect(parsedItem.isFractured).toBe(true);
   });
 
@@ -44,7 +44,7 @@ describe("Parse Fractured Items", () => {
         },
       ],
     } as unknown as ParserState;
-    __testExports.parseFractured(parsedItem);
+    testExports.parseFractured(parsedItem);
     expect(parsedItem.isFractured).toBeUndefined();
   });
 });

@@ -11,7 +11,7 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import { useI18n } from "vue-i18n";
-import { KeyToCode, hotkeyToString } from "@ipc/KeyToCode";
+import { HotkeyCodes, hotkeyToString } from "@ipc/KeyToCode";
 
 export default defineComponent({
   emits: ["update:modelValue"],
@@ -55,7 +55,7 @@ export default defineComponent({
           code = "Cancel";
         }
 
-        if ((KeyToCode as Record<string, number>)[code]) {
+        if (HotkeyCodes.has(code)) {
           code = hotkeyToString([code], ctrlKey, shiftKey, altKey);
           if (code.includes("F12")) return;
           if (props.noModKeys && code.includes("+")) return;

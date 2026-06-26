@@ -81,7 +81,7 @@ const PLACEHOLDER_MAP = [
   // 2 # -> max 2 #
   [[0, 1], [0], [1], []],
   // 3 # -> max 2 #
-  [[0, 1, 2], [1, 2], [0, 2], [0, 1], [2], [1], [0]],
+  [[0, 1, 2], [1, 2], [0, 2], [0, 1], [2], [1], [0], []],
   // 4 # -> max 2 #
   [
     [0, 1, 2, 3],
@@ -95,6 +95,11 @@ const PLACEHOLDER_MAP = [
     [0, 3],
     [0, 2],
     [0, 1],
+    [3],
+    [2],
+    [1],
+    [0],
+    [],
   ],
 ];
 
@@ -322,6 +327,9 @@ function parseRoll(
 }
 
 export function getRollOrMinmaxAvg(values: number[]): number {
+  if (values.length === 4) {
+    return (values[0] + values[1] + values[2] + values[3]) / 4;
+  }
   if (values.length === 2) {
     return (values[0] + values[1]) / 2;
   } else {
@@ -366,7 +374,6 @@ function findAndResolveTranslation(
   return statOrGroup;
 }
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const __testExports = {
+export const testExports = {
   tryParseTranslation,
 };

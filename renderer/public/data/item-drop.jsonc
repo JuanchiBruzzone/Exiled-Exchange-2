@@ -123,7 +123,9 @@
       "UNIQUE::Assailum // Closed Helm"
     ]
   },
-  //#endregion
+  //#endregion Fragments
+  //#region Boss Drops
+  //#endregion Boss Drops
   //#region Lineage gem groups
   // non-world drop ones that have a chance to drop together
   // Drops from a Lineage Gems Vault (Hall of Reverence) in Atziri's Temple.
@@ -225,7 +227,7 @@
     ],
     "items": []
   },
-  //#endregion
+  //#endregion Lineage gem groups
   //#region Reliquary Keys
   {
     "query": [
@@ -303,7 +305,7 @@
       "UNIQUE::Beetlebite // Velour Shoes"
     ]
   },
-  //#endregion
+  //#endregion Reliquary Keys
   //#region League currency groups
   {
     "query": [
@@ -349,7 +351,19 @@
     ],
     "items": []
   },
-  //#endregion
+  //#endregion League currency groups
+  //#region Uniques
+  {
+    "query": [
+      "UNIQUE::Berek's Grip",
+      "UNIQUE::Berek's Respite",
+      "UNIQUE::Berek's Pass"
+    ],
+    "items": [
+      "UNIQUE::The Taming"
+    ]
+  },
+  //#endregion Uniques
   //#region Tiered Currencies
   {
     "query": [
@@ -399,7 +413,7 @@
     ],
     "items": []
   },
-  //#endregion
+  //#endregion Tiered Currencies
   //#region Crafting items commonly used together
   {
     "query": [
@@ -547,7 +561,7 @@
       "ITEM::Orb of Chance"
     ]
   },
-  //#endregion
+  //#endregion Crafting items commonly used together
   //#region Trials
   {
     "query": [
@@ -607,7 +621,7 @@
       "ITEM::Zarokh's Reliquary Key: Sekhema's Resolve"
     ]
   },
-  //#endregion
+  //#endregion Trials
   //#region Legacy of the * augments
   {
     "query": [
@@ -1167,5 +1181,5 @@
       "ITEM::Aldur's Legacy"
     ]
   }
-  //#endregion
+  //#endregion Legacy of the * augments
 ]

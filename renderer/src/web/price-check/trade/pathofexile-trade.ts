@@ -71,7 +71,7 @@ export const CATEGORY_TO_TRADE_ID = new Map([
   [ItemCategory.Trinket, "accessory.trinket"],
   [ItemCategory.SanctumRelic, "sanctum.relic"],
   [ItemCategory.Tincture, "tincture"],
-  [ItemCategory.Charm, "azmeri.charm"],
+  [ItemCategory.Charm, "flask.charm"],
   [ItemCategory.Crossbow, "weapon.crossbow"],
   [ItemCategory.SkillGem, "gem.activegem"],
   [ItemCategory.SupportGem, "gem.supportgem"],
@@ -384,10 +384,12 @@ export interface SearchResult {
 
 interface TradeModMetadata {
   name: string;
-  tier: number;
+  tier: string;
   level: number;
   magnitudes: Array<{ hash: string; min: string; max: string }>;
 }
+
+export type TradeModHashes = [string, number[] | null];
 
 interface TradeDataRichLine {
   name: string;
@@ -395,6 +397,18 @@ interface TradeDataRichLine {
   displayMode: number;
   type?: TradePropType;
   icon?: string;
+}
+interface FetchModInfo {
+  name?: string;
+  tier?: string;
+  level?: number;
+  magnitudes: Array<{ min: string; max: string }>;
+}
+
+interface FetchResultMod {
+  description: string;
+  hash: string;
+  mods?: FetchModInfo[];
 }
 
 interface FetchResult {
@@ -434,33 +448,19 @@ interface FetchResult {
     gemSockets?: string[];
     properties?: TradeDataRichLine[];
     requirements?: TradeDataRichLine[];
+    extended?: FetchResultExtended;
     grantedSkills?: TradeDataRichLine[];
-    implicitMods?: string[];
-    explicitMods?: string[];
-    mutatedMods?: string[];
-    enchantMods?: string[];
-    runeMods?: string[];
-    extended?: {
-      dps?: number;
-      pdps?: number;
-      edps?: number;
-      ar?: number;
-      ev?: number;
-      es?: number;
-      ward?: number;
-      dps_aug?: boolean;
-      pdps_aug?: boolean;
-      edps_aug?: boolean;
-      ar_aug?: boolean;
-      ev_aug?: boolean;
-      es_aug?: boolean;
-      ward_aug?: boolean;
-      mods?: Record<string, TradeModMetadata[]>;
-      hashes?: Record<string, Array<Array<string | number[] | null>>>;
-    };
-    pseudoMods?: string[];
-    desecratedMods?: string[];
-    fracturedMods?: string[];
+    implicitMods?: FetchResultMod[] | string[];
+    explicitMods?: FetchResultMod[] | string[];
+    craftedMods?: FetchResultMod[] | string[];
+    mutatedMods?: FetchResultMod[] | string[];
+    enchantMods?: FetchResultMod[] | string[];
+    runeMods?: FetchResultMod[] | string[];
+    veiledMods?: FetchResultMod[] | string[];
+    pseudoMods?: FetchResultMod[] | string[];
+    desecratedMods?: FetchResultMod[] | string[];
+    fracturedMods?: FetchResultMod[] | string[];
+    socketedItems?: FetchResult["item"][];
   };
   listing: {
     indexed: string;
@@ -476,9 +476,30 @@ interface FetchResult {
   gone?: boolean;
 }
 
+export interface FetchResultExtended {
+  dps?: number;
+  pdps?: number;
+  edps?: number;
+  ar?: number;
+  ev?: number;
+  es?: number;
+  ward?: number;
+  dps_aug?: boolean;
+  pdps_aug?: boolean;
+  edps_aug?: boolean;
+  ar_aug?: boolean;
+  ev_aug?: boolean;
+  es_aug?: boolean;
+  ward_aug?: boolean;
+  // only has implicit?
+  mods?: Record<string, TradeModMetadata[]>;
+  hashes?: Record<string, TradeModHashes[]>;
+}
+
 export interface DisplayItemLine {
   // text should include colon if required...
   text: string;
+  tier?: string;
   value?: string | number;
   color: TradeNumberColors;
 }
@@ -507,6 +528,7 @@ export interface DisplayItem {
   mutatedMods?: DisplayItemLine[];
   desecratedMods?: DisplayItemLine[];
   pseudoMods?: DisplayItemLine[];
+  veiledMods?: DisplayItemLine[];
   extended?: Array<{ text: string; value: number }>;
   itemTags?: DisplayItemLine[];
   sockets: Array<{ group: number; type: string; item?: string }>;
@@ -537,7 +559,7 @@ export interface PricingResult {
   accountName: string;
   accountStatus: "offline" | "online" | "afk";
   ign: string;
-  displayItem: DisplayItem;
+  displayItem?: DisplayItem;
   inDemand?: boolean;
   gone?: boolean;
 }
@@ -1080,11 +1102,17 @@ export function createTradeRequest(
       case "item.rarity_magic":
         propSet(query.filters, "type_filters.filters.rarity.option", "magic");
         break;
+
       case "item.map_revives":
         propSet(
           query.filters,
           "map_filters.filters.map_revives.min",
           typeof input.min === "number" ? input.min : undefined,
+        );
+        propSet(
+          query.filters,
+          "map_filters.filters.map_revives.max",
+          typeof input.max === "number" ? input.max : undefined,
         );
         break;
       case "item.map_pack_size":
@@ -1128,6 +1156,23 @@ export function createTradeRequest(
           "map_filters.filters.map_gold.min",
           typeof input.min === "number" ? input.min : undefined,
         );
+        break;
+      case "item.duplicates":
+        {
+          if (item.info.refName !== "Mageblood") {
+            throw new Error("Duplicates filter applied to non-mageblood");
+          }
+          // make a NOT and put all legacies in there
+          // then disable ones found on this item
+          const bmFilter = buildMageBloodNotFilter(
+            stat,
+            stats.filter((s) => s.statRef.startsWith("Legacy of")),
+            query.stats[0],
+          );
+          if (bmFilter) {
+            query.stats.push(bmFilter);
+          }
+        }
         break;
     }
   }
@@ -1293,7 +1338,12 @@ export async function requestResults(
   }
 
   return data.map<PricingResult>((result) => {
-    const displayItem: DisplayItem = parseFetchResult(result);
+    let displayItem: DisplayItem | undefined;
+    try {
+      displayItem = parseFetchResult(result);
+    } catch (e) {
+      console.error(e);
+    }
 
     let priceCurrencyRank: PricingResult["priceCurrencyRank"];
     if (
@@ -1336,7 +1386,13 @@ export async function requestResults(
         ?.values[0][0],
       level: result.item.properties?.find((prop) => prop.type === 5)
         ?.values[0][0],
-      gemSockets: result.item.gemSockets?.length,
+      gemSockets: result.item.gemSockets?.length
+        ? result.item.gemSockets?.length
+        : result.item.socketedItems
+            ?.filter((s) => s.gemSockets)
+            .map((s) => s.gemSockets!)
+            // sort in descending order
+            .toSorted((a, b) => a!.length - b!.length)[0]?.length,
       relativeDate:
         DateTime.fromISO(result.listing.indexed).toRelative({
           style: "short",
@@ -1498,6 +1554,14 @@ function parseFetchResult(result: FetchResult): PricingResult["displayItem"] {
     itemProps: buildItemProps(result.item.ilvl, result.item.requirements),
     grantSkill: buildGrantSkillBlock(result.item.grantedSkills),
     ...parseMods(result),
+    veiledMods: result.item.veiledMods?.map((vm) => {
+      return {
+        text: (vm as string).startsWith("Prefix")
+          ? "Unrevealed Prefix"
+          : "Unrevealed Suffix",
+        color: TradeNumberColors.Desecrated,
+      };
+    }),
     sockets: result.item.sockets,
     itemTags,
     icon: {
@@ -1515,49 +1579,120 @@ function parseMods(result: FetchResult): {
   runeMods?: DisplayItemLine[] | undefined;
   implicitMods?: DisplayItemLine[] | undefined;
   explicitMods?: DisplayItemLine[] | undefined;
+  craftedMods?: DisplayItemLine[] | undefined;
   desecratedMods?: DisplayItemLine[] | undefined;
   mutatedMods?: DisplayItemLine[] | undefined;
   fracturedMods?: DisplayItemLine[] | undefined;
   pseudoMods?: DisplayItemLine[] | undefined;
 } {
-  /*
+  const modMetadata = result.item.extended?.mods;
+  const modHashes = result.item.extended?.hashes;
 
-  */
   return {
     enchantMods: parseModBlock(
       result.item.enchantMods,
       TradeNumberColors.Enchant,
+      modMetadata?.enchant,
+      modHashes?.enchant,
     ),
-    runeMods: parseModBlock(result.item.runeMods, TradeNumberColors.Enchant),
-    implicitMods: parseModBlock(result.item.implicitMods),
+    runeMods: parseModBlock(
+      result.item.runeMods,
+      TradeNumberColors.Enchant,
+      modMetadata?.rune,
+      modHashes?.rune,
+    ),
+    implicitMods: parseModBlock(
+      result.item.implicitMods,
+      undefined,
+      modMetadata?.implicit,
+      modHashes?.implicit,
+    ),
     fracturedMods: parseModBlock(
       result.item.fracturedMods,
       TradeNumberColors.Fractured,
+      modMetadata?.fractured,
+      modHashes?.fractured,
     ),
-    explicitMods: parseModBlock(result.item.explicitMods),
+    explicitMods: parseModBlock(
+      result.item.explicitMods,
+      undefined,
+      modMetadata?.explicit,
+      modHashes?.explicit,
+    ),
+    craftedMods: parseModBlock(
+      result.item.craftedMods,
+      undefined,
+      modMetadata?.crafted,
+      modHashes?.crafted,
+    ),
     desecratedMods: parseModBlock(
       result.item.desecratedMods,
       TradeNumberColors.Desecrated,
+      modMetadata?.desecrated,
+      modHashes?.desecrated,
     ),
     mutatedMods: parseModBlock(
       result.item.mutatedMods,
       TradeNumberColors.Mutated,
+      modMetadata?.mutated,
+      modHashes?.mutated,
     ),
-    pseudoMods: parseModBlock(result.item.pseudoMods),
+    pseudoMods: parseModBlock(
+      result.item.pseudoMods,
+      undefined,
+      modMetadata?.pseudo,
+      modHashes?.pseudo,
+    ),
   };
 }
 
 function parseModBlock(
-  translated: string[] | undefined,
+  translated: string[] | FetchResultMod[] | undefined,
   color: TradeNumberColors = TradeNumberColors.Augmented,
-  // mods: TradeModMetadata[] | undefined,
-  // hashes: Array<Array<string | number[] | null>> | undefined,
+  mods?: TradeModMetadata[],
+  hashes?: TradeModHashes[],
 ): DisplayItemLine[] | undefined {
   // separate function, allow doing complex parsing later if needed
   if (!translated) return undefined;
-  return translated.map((s) => {
-    return { text: parseAffixStrings(s), color };
+  if (!translated.length) return [];
+  if (typeof translated[0] === "string") {
+    return (translated as string[]).map((s, index) => {
+      const tier = getTier(index, mods, hashes);
+      return { text: parseAffixStrings(s), color, tier };
+    });
+  }
+  return (translated as FetchResultMod[]).map((s) => {
+    return {
+      text: parseAffixStrings(s.description),
+      color,
+      tier: getTierV2(s.mods),
+    };
   });
+}
+
+function getTier(
+  displayIndex: number,
+  mods?: TradeModMetadata[],
+  hashes?: TradeModHashes[],
+): string | undefined {
+  if (!mods?.length) return;
+
+  const hashEntry = hashes?.[displayIndex];
+  if (!hashEntry) return;
+
+  const modIndexes = hashEntry[1];
+  if (!modIndexes) return;
+
+  return modIndexes
+    .map((modIndex) => mods[modIndex]?.tier)
+    .filter((tier) => tier != null)
+    .join(" + ");
+}
+
+function getTierV2(mods: FetchModInfo[] | undefined): string | undefined {
+  if (!mods?.length) return;
+
+  return mods.map((mod) => mod.tier).join(" + ");
 }
 
 function buildNameBlock(
@@ -1627,7 +1762,7 @@ function buildNameBlock(
           continue;
 
         case TradePropType.Quality:
-          text = "item.quality";
+          text = `${parseAffixStrings(name)}: {0}`;
           break;
 
         case TradePropType.WeaponSpeed:
@@ -1757,8 +1892,213 @@ function buildGrantSkillBlock(
   return block;
 }
 
-// Disable since this is export for tests
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const __testExports = {
+const EASY_LEGACY_DUPLICATE_TO_FILTER = new Map<
+  number,
+  {
+    count: number;
+    values: Array<{
+      min?: number;
+      max?: number;
+      option?: number | string;
+    }>;
+  }
+>([
+  [3, { count: 1, values: [{ min: 4 }] }],
+  [2, { count: 4, values: [{ min: 1 }, { min: 2 }, { min: 3 }] }],
+  [1, { count: 7, values: [{ min: 1 }, { min: 2 }, { max: 2 }] }],
+]);
+
+function buildFilterWithValue(
+  inFilter: StatFilter,
+  inRoll:
+    | {
+        value: number;
+        min: number | undefined;
+        max: number | undefined;
+      }
+    | undefined,
+) {
+  if (!inRoll) {
+    return tradeIdToQuery(inFilter.tradeId[0], inFilter);
+  }
+  const newFilter = {
+    ...inFilter,
+    roll: {
+      ...inRoll,
+      dp: false,
+      isNegated: false,
+      default: { min: inRoll.value, max: inRoll.value },
+    },
+  };
+  return tradeIdToQuery(newFilter.tradeId[0], newFilter);
+}
+
+function buildMageBloodNotFilter(
+  duplicateStat: StatFilter,
+  legacyOfStats: StatFilter[],
+  qAnd: {
+    filters: Array<{
+      id: string;
+      value?: {
+        min?: number;
+        max?: number;
+        option?: number | string;
+      };
+      disabled?: boolean;
+    }>;
+  },
+) {
+  const countFilter: {
+    type: "and" | "if" | "count" | "not";
+    value?: FilterRange;
+    filters: Array<{
+      id: string;
+      value?: {
+        min?: number;
+        max?: number;
+        option?: number | string;
+      };
+      disabled?: boolean;
+    }>;
+    disabled?: boolean;
+  } = {
+    type: "count",
+    filters: [],
+  };
+
+  // {
+  //   type: "not",
+  //   filters: [],
+  //   disabled: duplicateStat.disabled,
+  // };
+  // if (!legacyOfStats.length) {
+  //   return filter;
+  // }
+  // const someLegacy = legacyOfStats[0];
+  // const tradeId = someLegacy.tradeId[0].split("|")[0];
+  // const myLegacies = new Set(legacyOfStats.map((s) => s.text));
+
+  // filter.filters.push(
+  //   ...someLegacy.sources[0].stat.stat.matchers.map((m) => ({
+  //     id: `${tradeId}|${m.value}`,
+  //     disabled: myLegacies.has(m.string),
+  //   })),
+  // );
+
+  const knownCount = legacyOfStats.filter((s) => !s.disabled).length;
+  const dupCount =
+    (duplicateStat.roll!.min as number) ?? duplicateStat.roll!.value;
+  if (dupCount + knownCount > 4) {
+    throw new Error(
+      "not valid Mageblood, reduce duplicates or unselect a Legacy",
+    );
+  }
+  // let useMax: number | undefined;
+
+  if (duplicateStat.disabled) {
+    // dont do anything and return after adding to main filters,
+    // no duplicate calcs since disabled
+    qAnd.filters.push(
+      ...legacyOfStats.map((s) => buildFilterWithValue(s, undefined)),
+    );
+    return;
+  }
+
+  // KNOWN 1-4, DUP 0
+  if (dupCount === 0) {
+    // dont do any min stuff
+    qAnd.filters.push(
+      ...legacyOfStats.map((s) => buildFilterWithValue(s, undefined)),
+    );
+    return;
+  }
+
+  // KNOWN 4 DUP 0, KNOWN 3 DUP 1, KNOWN 2 DUP 2, KNOWN 1 DUP 3
+  if (knownCount + dupCount === 4) {
+    // "easy cases"
+    // KNOWN 1 DUP 3
+    if (dupCount === 3) {
+      qAnd.filters.push(
+        ...legacyOfStats.map((s) =>
+          buildFilterWithValue(s, { value: 4, min: 4, max: undefined }),
+        ),
+      );
+      return;
+    }
+    // KNOWN 4 DUP 0
+    if (dupCount === 0) {
+      qAnd.filters.push(
+        ...legacyOfStats.map((s) =>
+          buildFilterWithValue(s, { value: 1, min: 1, max: undefined }),
+        ),
+      );
+      return;
+    }
+
+    // slightly harder cases
+    // KNOWN 2 DUP 2 or KNOWN 3 DUP 1
+    if (dupCount === 2 || dupCount === 1) {
+      qAnd.filters.push(
+        ...legacyOfStats.map((s) => buildFilterWithValue(s, undefined)),
+      );
+      const dupFilter = EASY_LEGACY_DUPLICATE_TO_FILTER.get(dupCount)!;
+      countFilter.value = {
+        min: dupFilter.count,
+      };
+
+      countFilter.filters.push(
+        ...legacyOfStats
+          .map((s) => buildFilterWithValue(s, undefined))
+          .flatMap((legFilter) => {
+            return dupFilter.values.map((v) => ({
+              ...legFilter,
+              value: { ...v },
+            }));
+          }),
+      );
+
+      return countFilter;
+    }
+  }
+  // yuk, "hard cases", will be on edge of complexity possibly
+  // KNOWN 1 DUP 1, KNOWN 2 DUP 1, KNOWN 1 DUP 2
+
+  // add existing
+  qAnd.filters.push(
+    ...legacyOfStats.map((s) => buildFilterWithValue(s, undefined)),
+  );
+
+  // precursor data
+  const someLegacy = legacyOfStats[0];
+  const tradeId = someLegacy.tradeId[0].split("|")[0];
+  const legacyTradeIds = someLegacy.sources[0].stat.stat.matchers.map(
+    (m) => `${tradeId}|${m.value}`,
+  );
+
+  countFilter.value = {
+    min: 1,
+  };
+  if (dupCount === 1) {
+    countFilter.filters.push(
+      ...legacyTradeIds.map((id) => ({
+        id,
+        value: { min: 2 },
+      })),
+    );
+    return countFilter;
+  }
+  if (dupCount === 2) {
+    countFilter.filters.push(
+      ...legacyTradeIds.map((id) => ({
+        id,
+        value: { min: 1 },
+      })),
+    );
+  }
+
+  return countFilter;
+}
+
+export const testExports = {
   parseFetchResult,
 };

@@ -4,7 +4,7 @@ import { Host } from "@/web/background/IPC";
 import { useLeagues } from "./Leagues";
 import { AppConfig } from "../Config";
 import { PriceCheckWidget } from "../overlay/widgets";
-import { ITEM_BY_REF } from "@/assets/data";
+import { DropEntry, ITEM_BY_REF } from "@/assets/data";
 
 export type NinjaSchema = NinjaSchemaV1;
 type NinjaSchemaV1 = {
@@ -62,6 +62,8 @@ type PriceDatabase = Array<{
 const RETRY_INTERVAL_MS = 4 * 60 * 1000;
 const UPDATE_INTERVAL_MS = 31 * 60 * 1000;
 const INTEREST_SPAN_MS = 20 * 60 * 1000;
+const MIN_REASONABLE_CORE_PER_DIVINE = 5;
+const MIN_ANY_CORE_PER_DIVINE = 10;
 
 interface DbQuery {
   ns: string;
@@ -112,6 +114,8 @@ export const DivCurrency: CoreCurrency = {
 export const usePoeninja = createGlobalState(() => {
   const leagues = useLeagues();
 
+  const dropEntries = shallowRef<DropEntry[]>([]);
+
   const availableCoreCurrencies = shallowRef<CoreCurrency[]>([]);
   const selectedCoreCurrencyId = computed<"exalted" | "chaos">({
     get() {
@@ -137,23 +141,13 @@ export const usePoeninja = createGlobalState(() => {
    * core/div
    */
   const xchgRate = shallowRef<number | undefined>(undefined);
-  /**
-   * Current core currency
-   */
-  const xchgRateCurrency = shallowRef<"chaos" | "exalted" | undefined>(
-    undefined,
-  );
-
   const isLoading = shallowRef(false);
   let PRICES_DB: PriceDatabase = [];
   let lastUpdateTime = 0;
   let downloadController: AbortController | undefined;
   let lastInterestTime = 0;
 
-  let priceCache = new Map<
-    { ns: string; name: string; count: number },
-    CurrencyValue
-  >();
+  let priceCache = new Map<string, CurrencyValue>();
 
   async function load(force: boolean = false) {
     const league = leagues.selected.value;
@@ -169,6 +163,11 @@ export const usePoeninja = createGlobalState(() => {
       isLoading.value = true;
       downloadController = new AbortController();
 
+      dropEntries.value = await loadProxyJson<DropEntry[]>(
+        "api.exiledexchange2.dev/proxy/data/item-drop.json",
+        downloadController.signal,
+      );
+
       availableCoreCurrencies.value = getAvailableCoreCurrencies().map(
         (currency) => ({
           ...currency,
@@ -182,14 +181,11 @@ export const usePoeninja = createGlobalState(() => {
         selectedCoreCurrencyId.value = "exalted";
       }
 
-      const ninjaSchema: NinjaSchema = JSON.parse(
-        await Host.proxy(
-          "api.exiledexchange2.dev/proxy/data/namespaceMap.json",
-          {
-            signal: downloadController.signal,
-          },
-        ).then((r) => r.text()),
+      const ninjaSchema = await loadProxyJson<NinjaSchema>(
+        "api.exiledexchange2.dev/proxy/data/namespaceMap.json",
+        downloadController.signal,
       );
+
       const response = await Host.proxy(
         `api.exiledexchange2.dev/proxy/${selectedLeagueToUrl(true)}/overviewData.json`,
         {
@@ -202,33 +198,19 @@ export const usePoeninja = createGlobalState(() => {
 
       PRICES_DB = splitJsonBlob(jsonBlob, ninjaSchema);
 
-      // TODO: update to search for requested currency instead of divine
-      const divineRates = ninjaXchg.rates;
-      const preferred = selectedCoreCurrency.value;
-
-      if (divineRates && Object.values(divineRates).some((v) => v >= 10)) {
-        if (
-          preferred &&
-          preferred.id !== "div" &&
-          divineRates[preferred.id] >= 5
-        ) {
-          xchgRate.value = divineRates[preferred.id];
-          xchgRateCurrency.value = preferred.id;
-        } else {
-          xchgRate.value = divineRates.exalted;
-          xchgRateCurrency.value = "exalted";
-        }
-      }
+      xchgRate.value = selectCoreRate(
+        ninjaXchg.rates,
+        selectedCoreCurrency.value?.id,
+      );
 
       // Clear cache
-      priceCache = new Map<
-        { ns: string; name: string; count: number },
-        CurrencyValue
-      >();
+      priceCache = new Map<string, CurrencyValue>();
 
       lastUpdateTime = Date.now();
     } catch (e) {
-      console.warn(e);
+      if (!isAbortError(e)) {
+        lastUpdateTime = 0;
+      }
     } finally {
       isLoading.value = false;
     }
@@ -248,9 +230,9 @@ export const usePoeninja = createGlobalState(() => {
         return "hardcore";
     }
     if (league.startsWith("HC ")) {
-      return proxy ? "leaguehc" : "vaalhc";
+      return proxy ? "leaguehc" : "runesofaldurhc";
     }
-    return proxy ? "league" : "vaal";
+    return proxy ? "league" : "runesofaldur";
   }
 
   function findPriceByQuery(query: DbQuery) {
@@ -338,7 +320,8 @@ export const usePoeninja = createGlobalState(() => {
   }
 
   function cachedCurrencyByQuery(query: DbQuery, count: number) {
-    const key = { ns: query.ns, name: query.name, count };
+    // variant should always be undefined for currencies
+    const key = `${query.ns}:${query.name}:${query.variant ?? ""}:${count}`;
     if (priceCache.has(key)) {
       return priceCache.get(key)!;
     }
@@ -364,7 +347,6 @@ export const usePoeninja = createGlobalState(() => {
 
   watch(selectedCoreCurrencyId, (curr, prev) => {
     if (curr === prev) return;
-    xchgRateCurrency.value = curr ?? "exalted";
     xchgRate.value = undefined;
     PRICES_DB = [];
     load(true);
@@ -379,8 +361,37 @@ export const usePoeninja = createGlobalState(() => {
     cachedCurrencyByQuery,
     initialLoading: () => isLoading.value && !PRICES_DB.length,
     availableCoreCurrencies: readonly(availableCoreCurrencies),
+    ITEM_DROP: dropEntries,
   };
 });
+
+async function loadProxyJson<T>(url: string, signal: AbortSignal): Promise<T> {
+  const response = await Host.proxy(url, { signal });
+  return (await response.json()) as T;
+}
+
+function selectCoreRate(
+  rates: Record<string, number>,
+  preferredCurrency: CoreCurrency["id"] | undefined,
+): number | undefined {
+  if (!Object.values(rates).some((value) => value >= MIN_ANY_CORE_PER_DIVINE)) {
+    return undefined;
+  }
+
+  if (
+    preferredCurrency &&
+    preferredCurrency !== "div" &&
+    rates[preferredCurrency] >= MIN_REASONABLE_CORE_PER_DIVINE
+  ) {
+    return rates[preferredCurrency];
+  }
+
+  return rates.exalted;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
 
 function parseXchg(jsonBlob: string): NinjaXchgRates {
   const RATES = '{"rates":';
@@ -393,7 +404,6 @@ function parseXchg(jsonBlob: string): NinjaXchgRates {
 function splitJsonBlob(jsonBlob: string, schema: NinjaSchema): PriceDatabase {
   const NINJA_OVERVIEW = '{"type":"';
   if (schema.schemaVersion !== 1) {
-    console.warn("Unsupported ninja schema version", schema.schemaVersion);
     return [];
   }
   const NAMESPACE_MAP: Array<{
@@ -480,9 +490,8 @@ export function displayRounding(
   return Math.round(value).toString();
 }
 
-// Disable since this is export for tests
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const __testExports = {
+export const testExports = {
   parseXchg,
+  selectCoreRate,
   splitJsonBlob,
 };

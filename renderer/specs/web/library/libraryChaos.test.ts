@@ -1,6 +1,6 @@
 import { ParsedModifier } from "@/parser/advanced-mod-desc";
 import { ModifierType } from "@/parser/modifiers";
-import { __testExports, ColumnOpts } from "@/web/library/widget";
+import { testExports, ColumnOpts } from "@/web/library/widget";
 import { describe, expect, it } from "vitest";
 
 describe("modFilter", () => {
@@ -34,7 +34,7 @@ describe("modFilter", () => {
       const set = new Set(expected);
       for (let i = 0; i < expected.length; i++) {
         expect(
-          __testExports.modFilter(
+          testExports.modFilter(
             mods[i] as unknown as ParsedModifier,
             filter as unknown as ColumnOpts["keep"],
           ),

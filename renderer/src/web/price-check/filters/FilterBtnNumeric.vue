@@ -9,6 +9,7 @@
       type="number"
       v-model.number="inputMin"
       @focus="inputFocus"
+      @mousedown.right.prevent="clearInput($event, 'min')"
       @blur="inputMinBlur"
       @mousewheel.stop
       :style="{ width: `${1.2 + Math.max(String(inputMin).length, 2)}ch` }"
@@ -21,6 +22,7 @@
         type="number"
         v-model.number="inputMax"
         @focus="inputFocus"
+        @mousedown.right.prevent="clearInput($event, 'max')"
         @mousewheel.stop
         :style="{ width: `${1.2 + Math.max(String(inputMax).length, 2)}ch` }"
         placeholder="…"
@@ -64,33 +66,37 @@ export default defineComponent({
       { immediate: true },
     );
 
+    const inputMin = computed<number | "">({
+      get() {
+        return _inputMin.value;
+      },
+      set(value) {
+        _inputMin.value = value;
+        if (typeof value === "number") {
+          props.filter.value = value;
+        } else {
+          props.filter.value = 0;
+        }
+      },
+    });
+
+    const inputMax = computed<number | "">({
+      get() {
+        return _inputMax.value;
+      },
+      set(value) {
+        _inputMax.value = value;
+        if (typeof value === "number") {
+          props.filter.max = value;
+        } else {
+          props.filter.max = undefined;
+        }
+      },
+    });
+
     return {
-      inputMin: computed<number | "">({
-        get() {
-          return _inputMin.value;
-        },
-        set(value) {
-          _inputMin.value = value;
-          if (typeof value === "number") {
-            props.filter.value = value;
-          } else {
-            props.filter.value = 0;
-          }
-        },
-      }),
-      inputMax: computed<number | "">({
-        get() {
-          return _inputMax.value;
-        },
-        set(value) {
-          _inputMax.value = value;
-          if (typeof value === "number") {
-            props.filter.max = value;
-          } else {
-            props.filter.max = undefined;
-          }
-        },
-      }),
+      inputMin,
+      inputMax,
       inputFocus(e: FocusEvent) {
         const target = e.target as HTMLInputElement;
         target.select();
@@ -101,6 +107,17 @@ export default defineComponent({
           _inputMin.value = 0;
           props.filter.disabled = true;
         }
+      },
+      clearInput(e: MouseEvent, which: "min" | "max") {
+        const target = e.target as HTMLInputElement;
+
+        if (which === "min") {
+          inputMin.value = "";
+        } else {
+          inputMax.value = "";
+        }
+
+        target.focus();
       },
     };
   },

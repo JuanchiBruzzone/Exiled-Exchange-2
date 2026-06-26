@@ -4,7 +4,7 @@ import {
   ItemRarity,
   ParsedItem,
 } from "@/parser";
-import { ModifierType } from "@/parser/modifiers";
+import { EXPLICIT_MOD_TYPES, ModifierType } from "@/parser/modifiers";
 
 export function maxUsefulItemLevel(category: ItemCategory | undefined) {
   const itemLevelCaps: Partial<Record<ItemCategory, number>> = {
@@ -24,7 +24,7 @@ export function likelyFinishedItem(item: ParsedItem) {
   return (
     item.rarity === ItemRarity.Unique ||
     item.statsByType.some((calc) => calc.type === ModifierType.Crafted) ||
-    item.quality === 20 || // quality > 20 can be used for selling bases, quality < 20 drops sometimes
+    (item.quality === 20 && !item.qualityType) || // quality > 20 can be used for selling bases, quality < 20 drops sometimes
     !itemIsModifiable(item)
   );
 }
@@ -51,12 +51,8 @@ export function hasCraftingValue(item: ParsedItem) {
 }
 
 export function explicitModifierCount(item: ParsedItem) {
-  const randomMods = item.newMods.filter(
-    (mod) =>
-      mod.info.type === ModifierType.Explicit ||
-      mod.info.type === ModifierType.Fractured ||
-      mod.info.type === ModifierType.Veiled ||
-      mod.info.type === ModifierType.Desecrated,
+  const randomMods = item.newMods.filter((mod) =>
+    EXPLICIT_MOD_TYPES.has(mod.info.type),
   );
   if (randomMods.length === 0) {
     return { prefixes: 0, suffixes: 0, total: 0 };

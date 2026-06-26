@@ -182,7 +182,7 @@ export default defineComponent({
               ? "pathofexile.tw"
               : "www.pathofexile.com";
           case "ko":
-            return "poe.game.daum.net";
+            return "poe.kakaogames.com";
           case "ja":
             return "jp.pathofexile.com";
           case "de":

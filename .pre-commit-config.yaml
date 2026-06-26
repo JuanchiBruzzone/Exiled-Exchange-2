@@ -15,13 +15,6 @@ repos:
         language: python
         files: \.(js|md|yml|json)$
 
-    -   id: lint-fix-main
-        name: Lint Fix Main Project
-        entry: npm run fix --prefix ./main
-        language: system
-        pass_filenames: false
-        files: ^main/.*\.(ts|js|jsx|tsx)$
-
     -   id: lint-fix-renderer
         name: Lint Fix Renderer Project
         entry: npm run lint-fix --prefix ./renderer
@@ -29,26 +22,12 @@ repos:
         pass_filenames: false
         files: ^renderer/.*\.(ts|js|jsx|tsx|vue)$
 
-    -   id: format-main
-        name: Format Main Project
-        entry: npm run format --prefix ./main
-        language: system
-        pass_filenames: false
-        files: ^main/.*\.(ts|js|jsx|tsx|vue|json|md)$
-
     -   id: format-renderer
         name: Format Renderer Project
         entry: npm run format --prefix ./renderer
         language: system
         pass_filenames: false
         files: ^renderer/.*\.(ts|js|jsx|tsx|vue|json|md)$
-
-    -   id: type-check-main
-        name: Type Check Main Project
-        entry: npm run check-types --prefix ./main
-        language: system
-        pass_filenames: false
-        files: ^main/.*\.(ts|js|jsx|tsx|vue|json|md)$
 
     -   id: type-check-renderer
         name: Type Check Renderer Project

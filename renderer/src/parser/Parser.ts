@@ -7,6 +7,9 @@ import {
   BaseType,
   ITEM_BY_TRANSLATED,
   TRADE_ITEM_BY_REF,
+  AUGMENT_DATA_BY_TRADE_ID,
+  CATALYST_TYPES,
+  CATALYST_TO_TAG,
 } from "@/assets/data";
 import { ModifierType, StatCalculated, sumStatsByModType } from "./modifiers";
 import {
@@ -14,19 +17,17 @@ import {
   tryParseTranslation,
   getRollOrMinmaxAvg,
 } from "./stat-translations";
-import { ItemCategory } from "./meta";
+import { GEM, ItemCategory } from "./meta";
 import {
   IncursionRoom,
   ParsedItem,
   ItemInfluence,
   ItemRarity,
   itemIsModifiable,
+  EditorItem,
 } from "./ParsedItem";
 import { magicBasetype } from "./magic-name";
 import {
-  // isModInfoLine,
-  // groupLinesByMod,
-  // parseModInfoLine,
   parseModType,
   ModifierInfo,
   ParsedModifier,
@@ -40,6 +41,8 @@ import {
   ADDED_AUGMENT_LINE,
 } from "./advanced-mod-desc";
 import { calcPropPercentile, QUALITY_STATS } from "./calc-q20";
+import { AppConfig } from "@/web/Config";
+import { buildEditorItems } from "./augment-builder";
 
 type SectionParseResult =
   | "SECTION_PARSED"
@@ -48,6 +51,75 @@ type SectionParseResult =
 
 type ParserFn = (section: string[], item: ParserState) => SectionParseResult;
 type VirtualParserFn = (item: ParserState) => Result<never, string> | void;
+
+const LANGUAGE_DETECTOR = [
+  {
+    lang: "en",
+    displayLang: "English",
+    itemClassLine: "Item Class: ",
+    rarityLine: "Rarity: ",
+  },
+  {
+    lang: "ru",
+    displayLang: "Русский",
+    itemClassLine: "Класс предмета: ",
+    rarityLine: "Редкость: ",
+  },
+  {
+    lang: "fr",
+    displayLang: "Français",
+    itemClassLine: "Classe d'objet: ",
+    rarityLine: "Rareté: ",
+  },
+  {
+    lang: "de",
+    displayLang: "Deutsch",
+    itemClassLine: "Gegenstandsklasse: ",
+    rarityLine: "Seltenheit: ",
+  },
+  {
+    lang: "pt",
+    displayLang: "Português (Brasil)",
+    itemClassLine: "Classe do Item: ",
+    rarityLine: "Raridade: ",
+  },
+  {
+    lang: "es",
+    displayLang: "Español",
+    itemClassLine: "Clase de objeto: ",
+    rarityLine: "Rareza: ",
+  },
+  {
+    lang: "th",
+    displayLang: "ไทย",
+    itemClassLine: "ชนิดไอเทม: ",
+    rarityLine: "Rarity: ",
+  },
+  {
+    lang: "ko",
+    displayLang: "한국어",
+    itemClassLine: "아이템 종류: ",
+    rarityLine: "아이템 희귀도: ",
+  },
+  {
+    lang: "cmn-Hant",
+    displayLang: "正體中文",
+    itemClassLine: "物品種類: ",
+    rarityLine: "稀有度: ",
+  },
+  {
+    lang: "cmn-Hans",
+    displayLang: "普通话",
+    itemClassLine: "物品类别: ",
+    rarityLine: "Rarity: ",
+  },
+  {
+    lang: "ja",
+    displayLang: "日本語",
+    itemClassLine: "アイテムクラス: ",
+    rarityLine: "レアリティ: ",
+  },
+];
 
 export interface ParserState extends ParsedItem {
   name: string;
@@ -63,7 +135,6 @@ const parsers: Array<ParserFn | { virtual: VirtualParserFn }> = [
   parseSynthesised,
   parseCategoryByHelpText,
   { virtual: normalizeName },
-  parseVaalGemName,
   { virtual: findInDatabase },
   // -----------
   parseItemLevel,
@@ -188,16 +259,24 @@ function normalizeName(item: ParserState) {
 
   if (item.rarity === ItemRarity.Normal || item.rarity === ItemRarity.Rare) {
     if (item.baseType) {
-      if (_$.MAP_BLIGHTED.test(item.baseType)) {
+      if (_$REF.MAP_BLIGHTED.test(item.baseType)) {
         item.baseType = _$REF.MAP_BLIGHTED.exec(item.baseType)![1];
-      } else if (_$.MAP_BLIGHT_RAVAGED.test(item.baseType)) {
+      } else if (_$REF.MAP_BLIGHT_RAVAGED.test(item.baseType)) {
         item.baseType = _$REF.MAP_BLIGHT_RAVAGED.exec(item.baseType)![1];
+      } else if (_$.MAP_BLIGHTED.test(item.baseType)) {
+        item.baseType = _$.MAP_BLIGHTED.exec(item.baseType)![1];
+      } else if (_$.MAP_BLIGHT_RAVAGED.test(item.baseType)) {
+        item.baseType = _$.MAP_BLIGHT_RAVAGED.exec(item.baseType)![1];
       }
     } else {
-      if (_$.MAP_BLIGHTED.test(item.name)) {
+      if (_$REF.MAP_BLIGHTED.test(item.name)) {
         item.name = _$REF.MAP_BLIGHTED.exec(item.name)![1];
-      } else if (_$.MAP_BLIGHT_RAVAGED.test(item.name)) {
+      } else if (_$REF.MAP_BLIGHT_RAVAGED.test(item.name)) {
         item.name = _$REF.MAP_BLIGHT_RAVAGED.exec(item.name)![1];
+      } else if (_$.MAP_BLIGHTED.test(item.name)) {
+        item.name = _$.MAP_BLIGHTED.exec(item.name)![1];
+      } else if (_$.MAP_BLIGHT_RAVAGED.test(item.name)) {
+        item.name = _$.MAP_BLIGHT_RAVAGED.exec(item.name)![1];
       }
     }
   }
@@ -224,7 +303,7 @@ function findInDatabase(item: ParserState) {
     info = ITEM_BY_REF("DIVINATION_CARD", item.name);
   } else if (item.category === ItemCategory.CapturedBeast) {
     info = ITEM_BY_REF("CAPTURED_BEAST", item.baseType ?? item.name);
-  } else if (item.category === ItemCategory.Gem) {
+  } else if (item.category && GEM.has(item.category)) {
     info = ITEM_BY_REF("GEM", item.name);
   } else if (item.category === ItemCategory.MetamorphSample) {
     info = ITEM_BY_REF("ITEM", item.name);
@@ -235,22 +314,14 @@ function findInDatabase(item: ParserState) {
   } else {
     info = ITEM_BY_REF("ITEM", item.baseType ?? item.name);
   }
-  if (!info?.length) {
-    // First attempt to find item in trade items data
-    info = TRADE_ITEM_BY_REF({
-      name: item.name,
-      category: item.category,
-      rarity: item.rarity,
-      baseType: item.baseType,
-    });
-  }
+
   if (!info?.length) {
     // BUG[UPSTREAM]: https://www.pathofexile.com/forum/view-thread/3913283
     if (item.category === ItemCategory.DivinationCard) {
       info = ITEM_BY_TRANSLATED("DIVINATION_CARD", item.name);
     } else if (item.category === ItemCategory.CapturedBeast) {
       info = ITEM_BY_TRANSLATED("CAPTURED_BEAST", item.baseType ?? item.name);
-    } else if (item.category === ItemCategory.Gem) {
+    } else if (item.category && GEM.has(item.category)) {
       info = ITEM_BY_TRANSLATED("GEM", item.name);
     } else if (item.category === ItemCategory.MetamorphSample) {
       info = ITEM_BY_TRANSLATED("ITEM", item.name);
@@ -261,10 +332,20 @@ function findInDatabase(item: ParserState) {
     } else {
       info = ITEM_BY_TRANSLATED("ITEM", item.baseType ?? item.name);
     }
+  }
+  if (!info?.length) {
+    // First attempt to find item in trade items data
+    info = TRADE_ITEM_BY_REF({
+      name: item.name,
+      category: item.category,
+      rarity: item.rarity,
+      baseType: item.baseType,
+    });
     if (!info?.length) {
       return err("item.unknown");
     }
   }
+
   if (info[0].unique) {
     const uniqueInfo = info.filter(
       (info) => info.unique!.base === item.baseType,
@@ -282,7 +363,10 @@ function findInDatabase(item: ParserState) {
   // choose 1st variant, correct one will be picked at the end of parsing
   item.info = info[0];
   // same for every variant
-  if (!item.category) {
+  if (
+    !item.category ||
+    item.info.craftable?.category === ItemCategory.Wombgift
+  ) {
     if (item.info.craftable) {
       item.category = item.info.craftable.category;
     } else if (item.info.unique) {
@@ -291,11 +375,6 @@ function findInDatabase(item: ParserState) {
         item.info.unique.base,
       )![0].craftable!.category;
     }
-  }
-
-  // Override charm since its flask in trade
-  if (item.category === ItemCategory.Charm) {
-    item.category = ItemCategory.Flask;
   }
 }
 
@@ -310,8 +389,10 @@ function parseMap(section: string[], item: ParsedItem) {
 
 function parseWaystone(section: string[], item: ParsedItem) {
   performance.mark("parseWaystone");
-  if (section[0].startsWith(_$.WAYSTONE_TIER)) {
-    item.mapTier = Number(section.shift()!.slice(_$.WAYSTONE_TIER.length));
+
+  if (section[0].startsWith(_$.WAYSTONE_REVIVES) && item.info.map?.tier) {
+    // we are a map now
+    item.mapTier = item.info.map.tier;
 
     for (const line of section) {
       if (line.startsWith(_$.WAYSTONE_REVIVES)) {
@@ -354,6 +435,22 @@ function parseWaystone(section: string[], item: ParsedItem) {
       if (line.startsWith(_$.WAYSTONE_RARITY)) {
         item.mapItemRarity = parseInt(
           line.slice(_$.WAYSTONE_RARITY.length),
+          10,
+        );
+        continue;
+      }
+
+      if (line.startsWith(_$.WAYSTONE_MONSTER_RARITY)) {
+        item.mapMonsterRarity = parseInt(
+          line.slice(_$.WAYSTONE_MONSTER_RARITY.length),
+          10,
+        );
+        continue;
+      }
+
+      if (line.startsWith(_$.WAYSTONE_EFFECTIVENESS)) {
+        item.mapEffectiveness = parseInt(
+          line.slice(_$.WAYSTONE_EFFECTIVENESS.length),
           10,
         );
         continue;
@@ -440,8 +537,25 @@ function pickCorrectVariant(item: ParserState) {
 function parseNamePlate(section: string[]) {
   performance.mark("parseNamePlate");
   let line = section.shift();
+
+  let missingItemClass = false;
+
   if (!line?.startsWith(_$.ITEM_CLASS)) {
-    return err("item.parse_error");
+    // HACK: Meta skill gems
+    if (line && section.unshift(line) && isItemMissingItemClass(section)) {
+      missingItemClass = true;
+    } else {
+      const langFound = LANGUAGE_DETECTOR.find(({ rarityLine }) =>
+        section[1].startsWith(rarityLine),
+      );
+      if (langFound) {
+        return err(
+          `item.wrong_language|${langFound.displayLang}|${LANGUAGE_DETECTOR.find(({ lang }) => lang === AppConfig().language)!.displayLang}`,
+        );
+      }
+
+      return err("item.parse_error");
+    }
   }
 
   line = section.shift();
@@ -500,6 +614,10 @@ function parseNamePlate(section: string[]) {
     case _$.RARITY_UNIQUE:
       item.rarity = ItemRarity.Unique;
       break;
+  }
+
+  if (missingItemClass) {
+    item.category = ItemCategory.Gem;
   }
 
   return ok(item);
@@ -604,8 +722,11 @@ function parseRequirements(section: string[], item: ParsedItem) {
     return "SECTION_SKIPPED";
   }
 
+  if (item.category && GEM.has(item.category)) {
+    return "SECTION_SKIPPED";
+  }
+
   const match = section[0].match(_$.REQUIRES_LINE);
-  // TODO: remove once validated in other langs
   if (!match) {
     throw new Error("Failed to parse requirements");
   }
@@ -629,34 +750,20 @@ function parseTalismanTier(section: string[], item: ParsedItem) {
   return "SECTION_SKIPPED";
 }
 
-function parseVaalGemName(section: string[], item: ParserState) {
-  performance.mark("parseVaalGemName");
-  if (item.category !== ItemCategory.Gem) return "PARSER_SKIPPED";
-
-  // TODO blocked by https://www.pathofexile.com/forum/view-thread/3231236
-  if (section.length === 1) {
-    let gemName: string | undefined;
-    if (ITEM_BY_REF("GEM", section[0])) {
-      gemName = section[0];
-    }
-    if (gemName) {
-      item.name = ITEM_BY_REF("GEM", gemName)![0].refName;
-      return "SECTION_PARSED";
-    }
-  }
-  return "SECTION_SKIPPED";
-}
-
 function parseGem(section: string[], item: ParsedItem) {
   performance.mark("parseGem");
   if (
     item.category !== ItemCategory.Gem &&
+    item.category !== ItemCategory.MetaGem &&
     item.category !== ItemCategory.UncutGem
   ) {
     return "PARSER_SKIPPED";
   }
 
-  const gemLevelLineNumber = item.category === ItemCategory.Gem ? 1 : 0;
+  const gemLevelLineNumber =
+    item.category === ItemCategory.Gem || item.category === ItemCategory.MetaGem
+      ? 1
+      : 0;
 
   if (section[gemLevelLineNumber]?.startsWith(_$.GEM_LEVEL)) {
     // "Level: 20 (Max)"
@@ -702,11 +809,9 @@ function parseStackSize(section: string[], item: ParsedItem) {
 function parseAugmentSockets(section: string[], item: ParsedItem) {
   performance.mark("parseAugmentSockets");
   const categoryMax = getMaxSockets(item);
-  const armourOrWeapon =
-    categoryMax &&
-    (isArmourOrWeaponOrCaster(item.category) ||
-      item.info.refName === "Darkness Enthroned");
-  if (!armourOrWeapon) return "PARSER_SKIPPED";
+
+  if (!categoryMax) return "PARSER_SKIPPED";
+
   if (section[0].startsWith(_$.SOCKETS)) {
     const sockets = section[0].slice(_$.SOCKETS.length).trimEnd();
     const current = sockets.split("S").length - 1;
@@ -715,22 +820,26 @@ function parseAugmentSockets(section: string[], item: ParsedItem) {
         empty: 0,
         current,
         normal: categoryMax,
+        augments: Array(categoryMax).fill(null),
       };
     } else {
       item.augmentSockets = {
         empty: 0,
         current,
         normal: categoryMax,
+        augments: Array(categoryMax).fill(null),
       };
     }
 
     return "SECTION_PARSED";
   }
+  // don't have any....possibly "yet"....
   if (categoryMax && itemIsModifiable(item)) {
     item.augmentSockets = {
       empty: categoryMax,
       current: 0,
       normal: categoryMax,
+      augments: Array(categoryMax).fill(null),
     };
   }
   return "SECTION_SKIPPED";
@@ -738,7 +847,11 @@ function parseAugmentSockets(section: string[], item: ParsedItem) {
 
 function parseSockets(section: string[], item: ParsedItem) {
   performance.mark("parseSockets");
-  if (item.category === ItemCategory.Gem && section[0].startsWith(_$.SOCKETS)) {
+  if (
+    item.category &&
+    GEM.has(item.category) &&
+    section[0].startsWith(_$.SOCKETS)
+  ) {
     let sockets = section[0].slice(_$.SOCKETS.length).trimEnd();
     sockets = sockets.replace(/[^ -]/g, "#");
 
@@ -768,7 +881,26 @@ function parseQualityNested(section: string[], item: ParsedItem) {
     if (line.startsWith(_$.QUALITY)) {
       // "Quality: +20% (augmented)"
       item.quality = parseInt(line.slice(_$.QUALITY.length), 10);
-      break;
+
+      if (
+        item.category === ItemCategory.Ring ||
+        item.category === ItemCategory.Amulet ||
+        item.category === ItemCategory.Jewel
+      ) {
+        const catalysts =
+          item.category === ItemCategory.Jewel
+            ? CATALYST_TYPES.Refined
+            : CATALYST_TYPES.Normal;
+        for (const catalyst of catalysts) {
+          for (const tag of CATALYST_TO_TAG[catalyst.tags[1]]) {
+            if (line.includes(tag)) {
+              item.qualityType = catalyst.tags[1];
+              return;
+            }
+          }
+        }
+      }
+      return;
     }
   }
 }
@@ -799,7 +931,6 @@ function parseArmour(section: string[], item: ParsedItem) {
       continue;
     }
 
-    // FIXME: Update parser with actual text
     if (line.startsWith(_$.RUNIC_WARD)) {
       item.armourRW = parseInt(line.slice(_$.RUNIC_WARD.length), 10);
       isParsed = "SECTION_PARSED";
@@ -1153,29 +1284,47 @@ function applyAugmentSockets(item: ParsedItem) {
   // If we have any augment sockets
   if (item.augmentSockets) {
     // Count current mods that are of type Augment
-
     const augmentMods = item.newMods.filter(
       (mod) => mod.info.type === ModifierType.Augment,
     );
     const augmentStats = item.statsByType.filter(
       (calc) => calc.type === ModifierType.Augment,
     );
-    const augments = augmentMods
+    const augments: Array<EditorItem | null> = augmentMods
       .map((mod) => {
         const stat = augmentStats.find(
           (stat) => stat.sources[0].stat === mod.stats[0],
         );
         if (!stat) return [];
-        return augmentCount(mod, stat);
+        return buildEditorItems(
+          determineAugments(mod, stat),
+          item.category ?? ItemCategory.Unknown,
+          true,
+        );
       })
       .flat();
 
-    // HACK: fix since I can't detect how many exist due to augment tiers
-    const tempFix = augments.reduce((x, y) => x + y, 0) > 0;
-    const potentialEmptySockets = tempFix
-      ? 0
-      : Math.max(item.augmentSockets.normal, item.augmentSockets.current);
-    item.augmentSockets.empty = potentialEmptySockets;
+    if (
+      augments.length <
+      Math.max(item.augmentSockets.current, item.augmentSockets.normal)
+    ) {
+      // have possible empty sockets
+
+      const emptyAugments = item.isCorrupted
+        ? item.augmentSockets.current - augments.length
+        : Math.max(item.augmentSockets.current, item.augmentSockets.normal) -
+          augments.length;
+      for (let i = 0; i < emptyAugments; i++) {
+        augments.push(null);
+      }
+    }
+
+    // set all the stuff
+
+    item.augmentSockets.empty = augments.filter(
+      (augment) => augment === null,
+    ).length;
+    item.augmentSockets.augments = augments;
   }
 }
 
@@ -1322,9 +1471,17 @@ function parseSynthesised(section: string[], item: ParserState) {
     if (section[0] === _$.SECTION_SYNTHESISED) {
       item.isSynthesised = true;
       if (item.baseType) {
-        item.baseType = _$REF.ITEM_SYNTHESISED.exec(item.baseType)![1];
+        let baseTypeReg = _$REF.ITEM_SYNTHESISED.exec(item.baseType);
+        if (!baseTypeReg || baseTypeReg.length < 2) {
+          baseTypeReg = _$.ITEM_SYNTHESISED.exec(item.baseType);
+        }
+        item.baseType = baseTypeReg![1];
       } else {
-        item.name = _$REF.ITEM_SYNTHESISED.exec(item.name)![1];
+        let nameReg = _$REF.ITEM_SYNTHESISED.exec(item.name);
+        if (!nameReg || nameReg.length < 2) {
+          nameReg = _$.ITEM_SYNTHESISED.exec(item.name);
+        }
+        item.name = nameReg![1];
       }
       return "SECTION_PARSED";
     }
@@ -1343,6 +1500,8 @@ function parseSuperior(item: ParserState) {
   ) {
     if (_$REF.ITEM_SUPERIOR.test(item.name)) {
       item.name = _$REF.ITEM_SUPERIOR.exec(item.name)![1];
+    } else if (_$.ITEM_SUPERIOR.test(item.name)) {
+      item.name = _$.ITEM_SUPERIOR.exec(item.name)![1];
     }
   }
 }
@@ -1357,6 +1516,8 @@ function parseExceptional(item: ParserState) {
   ) {
     if (_$REF.ITEM_EXCEPTIONAL.test(item.name)) {
       item.name = _$REF.ITEM_EXCEPTIONAL.exec(item.name)![1];
+    } else if (_$.ITEM_EXCEPTIONAL.test(item.name)) {
+      item.name = _$.ITEM_EXCEPTIONAL.exec(item.name)![1];
     }
   }
 }
@@ -1369,12 +1530,10 @@ function parseRuneforged(item: ParserState) {
     item.rarity === ItemRarity.Rare ||
     item.rarity === ItemRarity.Unique
   ) {
-    // FIXME: Update when text is available
+    // NOTE: don't actually use since they different basetype
     // if (_$REF.ITEM_RUNEFORGED.test(item.name)) {
     //   item.name = _$REF.ITEM_RUNEFORGED.exec(item.name)![1];
     // }
-    // THEY ARE ACTUAL ITEMS????
-    // determine if detection is needed
   }
 }
 
@@ -1595,10 +1754,11 @@ function markupConditionParser(text: string) {
   return text;
 }
 
-function parseStatsFromMod(
+export function parseStatsFromMod(
   lines: string[],
   item: ParsedItem,
   modifier: ParsedModifier,
+  addedAugment?: BaseType,
 ): boolean {
   item.newMods.push(modifier);
 
@@ -1642,6 +1802,10 @@ function parseStatsFromMod(
 
     // if (parsedStat && validTradeIds && validTradeIds.length) {
     if (parsedStat) {
+      // keep augment basetype on the stat
+      if (modifier.info.type === ModifierType.AddedAugment) {
+        parsedStat.fromAddedAugment = addedAugment;
+      }
       modifier.stats.push(parsedStat);
 
       stat = statIterator.next(true);
@@ -1707,6 +1871,7 @@ function applyElementalAdded(item: ParsedItem) {
 
 function calcBasePercentile(item: ParsedItem) {
   performance.mark("calcBasePercentile");
+  // use ref since we have ref from unique.base
   const info = item.info.unique
     ? ITEM_BY_REF("ITEM", item.info.unique.base)![0].armour
     : item.info.armour;
@@ -1737,6 +1902,7 @@ function calcBasePercentile(item: ParsedItem) {
       item,
     );
   }
+  // no ward since base percent isn't used anymore
 }
 
 export function removeLinesEnding(
@@ -1748,21 +1914,38 @@ export function removeLinesEnding(
   );
 }
 
-export function parseAffixStrings(clipboard: string): string {
-  return clipboard.replace(/\[([^\]|]+)\|?([^\]]*)\]/g, (_, part1, part2) => {
+export function parseAffixStrings(text: string): string {
+  return text.replace(/\[([^\]|]+)\|?([^\]]*)\]/g, (_, part1, part2) => {
     return part2 || part1;
   });
 }
 export function getMaxSockets(item: ParsedItem) {
-  if (item.info.refName === "Darkness Enthroned") {
-    return 2;
-  }
+  switch (item.info.refName) {
+    case "Atziri's Splendour":
+      return 6;
 
-  if (
-    item.info.refName === "Grasping Ring" ||
-    item.info.refName === "Corona Amulet"
-  ) {
-    return 1;
+    case "Runeseeker's Call":
+      return 5;
+
+    case "Greymake":
+    case "Morior Invictus":
+    case "The Bringer of Rain":
+      return 4;
+
+    case "Serle's Grit":
+      return 3;
+
+    case "Darkness Enthroned":
+    case "Mahuxotl's Machination":
+      return 2;
+
+    case "Grasping Ring":
+    case "Corona Amulet":
+    case "Stalking Belt":
+      return 1;
+
+    default:
+    // fall through to below
   }
 
   const { category } = item;
@@ -1835,19 +2018,91 @@ export function isArmourOrWeaponOrCaster(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function augmentCount(mod: ParsedModifier, statCalc: StatCalculated): number {
-  if (mod.info.type !== ModifierType.Augment) return 0;
-  // HACK: fix since I can't detect how many exist due to augment tiers
-  // const augmentTradeId = statCalc.stat.trade.ids[ModifierType.Augment][0];
-  // const augmentSingle = AUGMENT_SINGLE_VALUE[augmentTradeId];
+function modifiedBfs(
+  remaining: number,
+  combo: number[],
+  available: number[],
+): number[] | null {
+  if (remaining === 0) return [...combo];
+
+  let best: number[] | null = null;
+  for (const augValue of available) {
+    if (augValue > remaining) {
+      // overflow
+      continue;
+    }
+    combo.push(augValue);
+    const result = modifiedBfs(remaining - augValue, combo, available);
+    combo.pop();
+    if (result) {
+      if (!best || result.length < best.length) {
+        best = result;
+      } else if (result.length === best.length) {
+        const resultMax = Math.max(
+          ...result.map((v) => result.filter((x) => x === v).length),
+        );
+        const bestMax = Math.max(
+          ...best.map((v) => best!.filter((x) => x === v).length),
+        );
+        if (resultMax > bestMax) {
+          best = result;
+        } else if (resultMax === bestMax) {
+          const resultSet = new Set(result);
+          const bestSet = new Set(best);
+          if (resultSet.size < bestSet.size) {
+            // use one with more duplicates
+            best = result;
+          }
+        }
+      }
+    }
+  }
+  return best?.toSorted((a, b) => b - a) ?? null;
+}
+
+function determineAugments(
+  mod: ParsedModifier,
+  statCalc: StatCalculated,
+): BaseType[] {
+  if (mod.info.type !== ModifierType.Augment) return [];
+  const augmentAppliedValue = statCalc.sources[0].contributes?.value;
+
+  const augmentTradeId = statCalc.stat.trade.ids[ModifierType.Augment][0];
+  const possibleAugments = AUGMENT_DATA_BY_TRADE_ID[augmentTradeId];
+  if (!possibleAugments) return [];
+
+  // something like "Raven-Touched"
+  if (!augmentAppliedValue) {
+    const singleAugment = possibleAugments[0];
+    return [ITEM_BY_REF("ITEM", singleAugment.refName)![0]];
+  }
 
   // // Calculate how many of this augment are in the item
-  // const augmentAppliedValue = statCalc.sources[0].contributes!.value;
-  // const augmentSingleValue = augmentSingle.values[0];
-  // const totalAugments = Math.floor(augmentAppliedValue / augmentSingleValue);
+  const availableAugmentValues = possibleAugments
+    .map((augment) => {
+      if (augment.values.length === 1) return augment.values[0];
 
-  return 1;
+      // stats like "# to # added Lightning Damage"
+      if ((augment.baseStat.match(/#/) || []).length > 1) {
+        const sum = augment.values.reduce((a, b) => a + b, 0);
+        return sum / augment.values.length || 0;
+      }
+
+      // everything else
+      return augment.values[0];
+    })
+    .toSorted((a, b) => b - a);
+
+  // BFS to find all combinations with minimum count
+  const likelyValues =
+    modifiedBfs(augmentAppliedValue, [], availableAugmentValues) ?? [];
+
+  return likelyValues.map((v) => {
+    const augment = possibleAugments.find((aug) =>
+      aug.values.some((augVal) => augVal === v),
+    )!;
+    return ITEM_BY_REF("ITEM", augment.refName)![0];
+  });
 }
 
 export function replaceHashWithValues(template: string, values: number[]) {
@@ -1858,19 +2113,16 @@ export function replaceHashWithValues(template: string, values: number[]) {
   return result;
 }
 
-function isUncutSkillGem(section: string[]): boolean {
-  if (section.length !== 2) return false;
-  const translated = _$.RARITY + _$.RARITY_CURRENCY;
-  return section[0] === translated && section[1] !== undefined;
+function isItemMissingItemClass(section: string[]): boolean {
+  if (section.length > 3 || section.length < 2) return false;
+  return section[0].startsWith(_$.RARITY) && section[1] !== undefined;
 }
 
-// Disable since this is export for tests
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const __testExports = {
+export const testExports = {
   itemTextToSections,
   findInDatabase,
   parseNamePlate,
-  isUncutSkillGem,
+  isItemMissingItemClass,
   parseWeapon,
   parseArmour,
   parseModifiers,
@@ -1879,4 +2131,6 @@ export const __testExports = {
   parseFractured,
   parseUnidentified,
   parseTrials,
+  determineAugments,
+  modifiedBfs,
 };
