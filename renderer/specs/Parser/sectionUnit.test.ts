@@ -1,4 +1,4 @@
-import { __testExports, ParserState } from "@/parser/Parser";
+import { testExports, ParserState } from "@/parser/Parser";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setupTests } from "@specs/vitest.setup";
 import { init } from "@/assets/data";
@@ -15,7 +15,7 @@ describe("Parse Unidentified Sections", () => {
     const parsedItem = {} as unknown as ParserState;
     const lines = ["Unidentified"];
 
-    const res = __testExports.parseUnidentified(lines, parsedItem);
+    const res = testExports.parseUnidentified(lines, parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.isUnidentified).toBeTruthy();
@@ -26,7 +26,7 @@ describe("Parse Unidentified Sections", () => {
     const parsedItem = {} as unknown as ParserState;
     const lines = ["Unidentified (Tier 4)"];
 
-    const res = __testExports.parseUnidentified(lines, parsedItem);
+    const res = testExports.parseUnidentified(lines, parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.isUnidentified).toBeTruthy();
@@ -45,7 +45,7 @@ describe("Parse Unidentified Sections", () => {
   ])("%#. shouldn't be unidentified", (lines: string[]) => {
     const parsedItem = {} as unknown as ParserState;
 
-    const res = __testExports.parseUnidentified(lines, parsedItem);
+    const res = testExports.parseUnidentified(lines, parsedItem);
 
     expect(res).toBe("SECTION_SKIPPED");
     expect(parsedItem.isUnidentified).toBeFalsy();
@@ -72,7 +72,7 @@ describe("parseTrials", () => {
         info: { ...createTestItem().info, refName: "Djinn Barya" },
       };
 
-      const res = __testExports.parseTrials(lines, parsedItem);
+      const res = testExports.parseTrials(lines, parsedItem);
 
       expect(res).toBe("SECTION_PARSED");
       expect(parsedItem.areaLevel).toBe(area);
@@ -101,7 +101,7 @@ describe("parseTrials", () => {
         info: { ...createTestItem().info, refName: "Inscribed Ultimatum" },
       };
 
-      const res = __testExports.parseTrials(lines, parsedItem);
+      const res = testExports.parseTrials(lines, parsedItem);
 
       expect(res).toBe("SECTION_PARSED");
       expect(parsedItem.areaLevel).toBe(area);
@@ -124,7 +124,7 @@ describe("parseTrials", () => {
       info: { ...createTestItem().info, refName },
     };
 
-    const res = __testExports.parseTrials(lines, parsedItem);
+    const res = testExports.parseTrials(lines, parsedItem);
 
     expect(res).toBe("PARSER_SKIPPED");
     expect(parsedItem.areaLevel).toBeUndefined();

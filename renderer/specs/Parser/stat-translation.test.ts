@@ -1,5 +1,5 @@
 import { ModifierType } from "@/parser/modifiers";
-import { __testExports } from "@/parser/stat-translations";
+import { testExports } from "@/parser/stat-translations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as data from "@/assets/data";
@@ -73,7 +73,7 @@ describe("tryParseTranslation", () => {
     vi.mocked(data.STAT_BY_MATCH_STR).mockReturnValue(undefined);
     vi.mocked(data.TRADE_STAT_BY_MATCH_STR).mockReturnValue(undefined);
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "180% increased Physical Damage", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -91,7 +91,7 @@ describe("tryParseTranslation", () => {
     });
     vi.mocked(data.TRADE_STAT_BY_MATCH_STR).mockReturnValue(undefined);
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "180(170-190)% increased Physical Damage", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -108,7 +108,7 @@ describe("tryParseTranslation", () => {
       PHYS_DAMAGE_STAT.trade.ids,
     );
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "180(170-190)% increased Physical Damage", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -129,7 +129,7 @@ describe("tryParseTranslation", () => {
     });
     vi.mocked(data.TRADE_STAT_BY_MATCH_STR).mockReturnValue(undefined);
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "180(170-190)% increased Physical Damage", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -151,7 +151,7 @@ describe("tryParseTranslation", () => {
       return PHYS_DAMAGE_STAT.trade.ids;
     });
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "180(170-190)% increased Physical Damage", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -177,7 +177,7 @@ describe("tryParseTranslation", () => {
     });
     vi.mocked(data.TRADE_STAT_BY_MATCH_STR).mockReturnValue(undefined);
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "220(170-190)% increased Physical Damage", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -202,7 +202,7 @@ describe("tryParseTranslation", () => {
       EXACT_MATCH_STAT.trade.ids,
     );
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "Players are Cursed with Enfeeble", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -223,7 +223,7 @@ describe("tryParseTranslation", () => {
       EXACT_MATCH_STAT.trade.ids,
     );
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "Players are Cursed with Enfeeble", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -245,7 +245,7 @@ describe("tryParseTranslation", () => {
       OPTION_STAT.trade.ids,
     );
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "Upgrades Radius to Large", unscalable: false },
       ModifierType.Explicit,
       undefined,
@@ -266,7 +266,7 @@ describe("tryParseTranslation", () => {
       explicit: ["explicit.stat_3891355829|2"],
     });
 
-    const result = __testExports.tryParseTranslation(
+    const result = testExports.tryParseTranslation(
       { string: "Upgrades Radius to Large", unscalable: false },
       ModifierType.Explicit,
       undefined,

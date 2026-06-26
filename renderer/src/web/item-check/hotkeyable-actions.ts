@@ -191,7 +191,6 @@ function getPoe2dbPath(item: ParsedItem) {
 }
 
 // Disable since this is export for tests
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const __testExports = {
+export const testExports = {
   encodePoe2dbUri,
 };

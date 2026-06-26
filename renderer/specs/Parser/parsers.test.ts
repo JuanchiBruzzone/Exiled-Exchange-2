@@ -1,5 +1,5 @@
 import { CLIENT_STRINGS as _$, init } from "@/assets/data";
-import { __testExports } from "@/parser/Parser";
+import { testExports } from "@/parser/Parser";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setupTests } from "@specs/vitest.setup";
 import {
@@ -22,7 +22,7 @@ describe("itemTextToSections", () => {
     await init("en");
   });
   it("empty string should not throw", () => {
-    expect(() => __testExports.itemTextToSections("")).not.toThrow();
+    expect(() => testExports.itemTextToSections("")).not.toThrow();
   });
 
   it.each([
@@ -35,7 +35,7 @@ describe("itemTextToSections", () => {
     [ArmourHighValueRareItem.rawText, ArmourHighValueRareItem.sectionCount],
     [WandRareItem.rawText, WandRareItem.sectionCount],
   ])("%#. standard item", (text: string, sectionCount: number) => {
-    const sections = __testExports.itemTextToSections(text);
+    const sections = testExports.itemTextToSections(text);
     expect(sections.length).toBe(sectionCount);
   });
 });
@@ -46,10 +46,10 @@ describe("parseWeapon", () => {
     await init("en");
   });
   it("Magic Weapon", () => {
-    const sections = __testExports.itemTextToSections(MagicItem.rawText);
+    const sections = testExports.itemTextToSections(MagicItem.rawText);
     const parsedItem = {} as ParsedItem;
 
-    const res = __testExports.parseWeapon(sections[1], parsedItem);
+    const res = testExports.parseWeapon(sections[1], parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.weaponPHYSICAL).toBe(MagicItem.weaponPHYSICAL);
@@ -59,10 +59,10 @@ describe("parseWeapon", () => {
     expect(parsedItem.weaponRELOAD).toBe(MagicItem.weaponRELOAD);
   });
   it("Rare Weapon", () => {
-    const sections = __testExports.itemTextToSections(RareItem.rawText);
+    const sections = testExports.itemTextToSections(RareItem.rawText);
     const parsedItem = {} as ParsedItem;
 
-    const res = __testExports.parseWeapon(sections[1], parsedItem);
+    const res = testExports.parseWeapon(sections[1], parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.weaponPHYSICAL).toBe(RareItem.weaponPHYSICAL);
@@ -72,12 +72,10 @@ describe("parseWeapon", () => {
     expect(parsedItem.weaponRELOAD).toBe(RareItem.weaponRELOAD);
   });
   it("High Damage Rare Weapon", () => {
-    const sections = __testExports.itemTextToSections(
-      HighDamageRareItem.rawText,
-    );
+    const sections = testExports.itemTextToSections(HighDamageRareItem.rawText);
     const parsedItem = {} as ParsedItem;
 
-    const res = __testExports.parseWeapon(sections[1], parsedItem);
+    const res = testExports.parseWeapon(sections[1], parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.weaponPHYSICAL).toBe(HighDamageRareItem.weaponPHYSICAL);
@@ -95,10 +93,10 @@ describe("parseArmour", () => {
     await init("en");
   });
   it("Normal Armour", () => {
-    const sections = __testExports.itemTextToSections(NormalItem.rawText);
+    const sections = testExports.itemTextToSections(NormalItem.rawText);
     const parsedItem = {} as ParsedItem;
 
-    const res = __testExports.parseArmour(sections[1], parsedItem);
+    const res = testExports.parseArmour(sections[1], parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.armourAR).toBe(NormalItem.armourAR);
@@ -108,10 +106,10 @@ describe("parseArmour", () => {
     expect(parsedItem.armourBLOCK).toBe(NormalItem.armourBLOCK);
   });
   it("Unique Armour", () => {
-    const sections = __testExports.itemTextToSections(UniqueItem.rawText);
+    const sections = testExports.itemTextToSections(UniqueItem.rawText);
     const parsedItem = {} as ParsedItem;
 
-    const res = __testExports.parseArmour(sections[1], parsedItem);
+    const res = testExports.parseArmour(sections[1], parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.armourAR).toBe(UniqueItem.armourAR);
@@ -121,12 +119,12 @@ describe("parseArmour", () => {
     expect(parsedItem.armourBLOCK).toBe(UniqueItem.armourBLOCK);
   });
   it("High Armour Rare", () => {
-    const sections = __testExports.itemTextToSections(
+    const sections = testExports.itemTextToSections(
       ArmourHighValueRareItem.rawText,
     );
     const parsedItem = {} as ParsedItem;
 
-    const res = __testExports.parseArmour(sections[1], parsedItem);
+    const res = testExports.parseArmour(sections[1], parsedItem);
 
     expect(res).toBe("SECTION_PARSED");
     expect(parsedItem.armourAR).toBe(ArmourHighValueRareItem.armourAR);
@@ -153,10 +151,10 @@ describe("parseRequirements", () => {
     async (testName: string, item: TestItem) => {
       setupTests();
       await init("en");
-      const sections = __testExports.itemTextToSections(item.rawText);
+      const sections = testExports.itemTextToSections(item.rawText);
       const parsedItem = {} as ParsedItem;
 
-      const res = __testExports.parseRequirements(
+      const res = testExports.parseRequirements(
         sections.find((s) => s.some((l) => l.startsWith(_$.REQUIRES)))!,
         parsedItem,
       );
@@ -213,7 +211,7 @@ describe("parseRequirements", () => {
       await init(lang);
       const parsedItem = {} as ParsedItem;
 
-      const res = __testExports.parseRequirements([str], parsedItem);
+      const res = testExports.parseRequirements([str], parsedItem);
 
       expect(res).toBe("SECTION_PARSED");
       expect(parsedItem.requires).toEqual(expectedResult);
