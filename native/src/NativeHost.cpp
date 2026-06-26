@@ -345,28 +345,30 @@ QString NativeHost::readClipboardText() {
 }
 
 void NativeHost::typeChatCommand(const QString &text) {
-  m_clipboard->setText(text, QClipboard::Clipboard);
   QTimer::singleShot(120, this, [this]() {
     runYdotool({
         QStringLiteral("key"),
         QStringLiteral("--key-delay"),
-        QStringLiteral("22"),
+        QStringLiteral("12"),
         QStringLiteral("28:1"),
         QStringLiteral("28:0"),
-        QStringLiteral("29:1"),
-        QStringLiteral("47:1"),
-        QStringLiteral("47:0"),
-        QStringLiteral("29:0"),
+    });
+  });
+  QTimer::singleShot(320, this, [this, text]() {
+    runYdotool({
+        QStringLiteral("type"),
+        QStringLiteral("--key-delay"),
+        QStringLiteral("12"),
+        text,
+    });
+  });
+  QTimer::singleShot(520, this, [this]() {
+    runYdotool({
+        QStringLiteral("key"),
+        QStringLiteral("--key-delay"),
+        QStringLiteral("12"),
         QStringLiteral("28:1"),
         QStringLiteral("28:0"),
-        QStringLiteral("28:1"),
-        QStringLiteral("28:0"),
-        QStringLiteral("103:1"),
-        QStringLiteral("103:0"),
-        QStringLiteral("103:1"),
-        QStringLiteral("103:0"),
-        QStringLiteral("1:1"),
-        QStringLiteral("1:0"),
     });
   });
 }

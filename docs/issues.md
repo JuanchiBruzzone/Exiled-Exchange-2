@@ -20,7 +20,7 @@ title: Common issues
 
 5. Check the logs in Settings -> Debug.
 
-6. Delete `~/.config/exiled-exchange-2` if configuration migration is broken.
+6. Delete `~/.config/exiled-exchange-native` if configuration migration is broken.
 
     Back up `apt-data` first if you need your configuration.
 

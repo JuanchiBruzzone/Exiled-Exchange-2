@@ -4,6 +4,7 @@
       <img class="w-12 h-12" src="/images/jeweler.png" />
       <p class="text-base">Exiled Exchange 2</p>
       <p class="">{{ t("app.version", [version]) }}</p>
+      <p class="text-xs text-gray-500">Native Linux fork</p>
       <div class="flex gap-2">
         <a
           class="border-b"

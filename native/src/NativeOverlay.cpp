@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QCursor>
+#include <QDesktopServices>
 #include <QDebug>
 #include <QEvent>
 #include <QGuiApplication>
@@ -16,6 +17,32 @@
 #include <QWebEngineView>
 
 #include <algorithm>
+#include <functional>
+
+class OverlayWebPage final : public QWebEnginePage {
+public:
+  explicit OverlayWebPage(QWebEngineProfile *profile, QObject *parent = nullptr)
+      : QWebEnginePage(profile, parent) {}
+
+  std::function<void()> beforeOpenExternal;
+
+protected:
+  QWebEnginePage *createWindow(WebWindowType type) override {
+    Q_UNUSED(type);
+
+    auto *page = new QWebEnginePage(profile(), this);
+    connect(page, &QWebEnginePage::urlChanged, page, [this, page](const QUrl &url) {
+      if (url.scheme() == QStringLiteral("http") || url.scheme() == QStringLiteral("https")) {
+        if (beforeOpenExternal) {
+          beforeOpenExternal();
+        }
+        QDesktopServices::openUrl(url);
+      }
+      page->deleteLater();
+    });
+    return page;
+  }
+};
 
 NativeOverlay::NativeOverlay(QWidget *parent) : QWidget(parent) {
   setWindowTitle(QStringLiteral("Exiled Exchange Native Overlay"));
@@ -24,6 +51,11 @@ NativeOverlay::NativeOverlay(QWidget *parent) : QWidget(parent) {
   setAttribute(Qt::WA_DeleteOnClose, false);
 
   m_view = new QWebEngineView(this);
+  auto *page = new OverlayWebPage(QWebEngineProfile::defaultProfile(), m_view);
+  page->beforeOpenExternal = [this]() {
+    hideOverlay();
+  };
+  m_view->setPage(page);
   m_view->setAttribute(Qt::WA_TranslucentBackground, true);
   m_view->page()->setBackgroundColor(Qt::transparent);
   m_view->page()->profile()->setHttpUserAgent(
