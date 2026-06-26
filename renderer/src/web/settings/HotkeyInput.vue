@@ -4,7 +4,6 @@
     @keydown.prevent
     :placeholder="modelValue || t('settings.no_key')"
     :class="{ 'placeholder-red-400': !modelValue }"
-    :disabled="disabled"
     class="rounded bg-gray-900 px-1 text-center font-poe"
   />
 </template>
@@ -12,7 +11,7 @@
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import { useI18n } from "vue-i18n";
-import { KeyToCode, hotkeyToString } from "@ipc/KeyToCode";
+import { HotkeyCodes, hotkeyToString } from "@ipc/KeyToCode";
 
 export default defineComponent({
   emits: ["update:modelValue"],
@@ -29,10 +28,6 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
   },
   setup(props, ctx) {
     const { t } = useI18n();
@@ -42,7 +37,6 @@ export default defineComponent({
       handleKeyup(e: KeyboardEvent) {
         e.preventDefault();
         e.stopPropagation();
-        if (props.disabled) return;
 
         if (e.code === "Backspace") {
           if (!props.required) {
@@ -61,7 +55,7 @@ export default defineComponent({
           code = "Cancel";
         }
 
-        if ((KeyToCode as Record<string, number>)[code]) {
+        if (HotkeyCodes.has(code)) {
           code = hotkeyToString([code], ctrlKey, shiftKey, altKey);
           if (code.includes("F12")) return;
           if (props.noModKeys && code.includes("+")) return;
@@ -72,10 +66,3 @@ export default defineComponent({
   },
 });
 </script>
-
-<style lang="postcss" scoped>
-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-</style>

@@ -101,7 +101,7 @@ export function poeWebApi() {
     case "cmn-Hant":
       return realm === "pc-garena" ? "pathofexile.tw" : "www.pathofexile.com";
     case "ko":
-      return "poe.game.daum.net";
+      return "poe.kakaogames.com";
     case "ja":
       return "jp.pathofexile.com";
     case "de":
@@ -156,8 +156,8 @@ export interface Config {
 }
 
 export const defaultConfig = (): Config => ({
-  configVersion: 32,
-  overlayKey: "Ctrl + Alt + P",
+  configVersion: 34,
+  overlayKey: "Shift + Space",
   overlayBackground: "rgba(129, 139, 149, 0.15)",
   overlayBackgroundClose: true,
   overlayAlwaysClose: false,
@@ -648,12 +648,26 @@ function upgradeConfig(_config: Config): Config {
 
     config.configVersion = 31;
   }
+
   if (config.configVersion < 32) {
-    if (config.overlayKey === "Shift + Space") {
-      config.overlayKey = "Ctrl + Alt + P";
-    }
+    // NOTE: v0.15.0 || poe0.5.1
+    const priceCheck = config.widgets.find(
+      (w) => w.wmType === "price-check",
+    ) as widget.PriceCheckWidget;
+    priceCheck.initialDelay = 48;
 
     config.configVersion = 32;
+  }
+
+  if (config.configVersion < 33) {
+    // NOTE: v0.15.6 || poe0.5.2
+    const libraryWidget = config.widgets.find(
+      (w) => w.wmType === "library",
+    ) as LibraryWidget;
+    libraryWidget.selectedProfile = "chaos";
+    libraryWidget.profiles.chaos!.modOpts.generation = true;
+
+    config.configVersion = 34;
   }
   /* eslint-enable */
 
@@ -808,5 +822,6 @@ function getConfigForHost(): HostConfig {
     readClientLog: config.readClientLog,
     libraryAlpha: config.enableAlphas && config.alphas.includes("library"),
     libraryOutputPath: library.libraryOutputPath,
+    initialDelay: priceCheck.initialDelay,
   };
 }

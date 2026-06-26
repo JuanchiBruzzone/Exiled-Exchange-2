@@ -1,7 +1,6 @@
 <template>
   <button
     @click="updateInput"
-    :disabled="disabled"
     class="flex items-center"
     style="height: 1.375rem"
   >
@@ -22,15 +21,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
   },
   setup(props, ctx) {
     return {
       updateInput() {
-        if (props.disabled) return;
         ctx.emit("update:modelValue", !props.modelValue);
       },
     };

@@ -27,58 +27,6 @@ interface TradeStat {
   text: string;
 }
 
-function describePayload(value: unknown): string {
-  if (value == null) {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `array(${value.length})`;
-  }
-
-  if (typeof value === "object") {
-    return `object keys: ${Object.keys(value).slice(0, 8).join(", ")}`;
-  }
-
-  return typeof value;
-}
-
-async function loadTradeResult<T>(
-  url: string,
-  signal: AbortSignal,
-): Promise<T[]> {
-  const response = await Host.proxy(url, { signal });
-  const resText = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      `trade data request failed (${response.status} ${response.statusText}): ${resText.slice(0, 160)}`,
-    );
-  }
-
-  let rawData: unknown;
-  try {
-    rawData = JSON.parse(resText);
-  } catch (e) {
-    throw new Error(
-      `trade data response was not JSON: ${(e as Error).message}`,
-    );
-  }
-
-  const result =
-    rawData != null && typeof rawData === "object" && "result" in rawData
-      ? (rawData as { result: unknown }).result
-      : undefined;
-
-  if (!Array.isArray(result)) {
-    throw new Error(
-      `trade data result is not an array (${describePayload(result)})`,
-    );
-  }
-
-  return result as T[];
-}
-
 export const useTradeData = createGlobalState(() => {
   let lastUpdateTime = 0;
   let downloadController: AbortController | undefined;
@@ -101,20 +49,24 @@ export const useTradeData = createGlobalState(() => {
       throw new Error("download controller not initialized");
     }
 
-    const rawStatsData = await loadTradeResult<{
-      id: string;
-      entries: TradeStat[];
-    }>(
+    const response = await Host.proxy(
       // don't use `getTradeEndpoint` since we want ref items, not translated
       `www.pathofexile.com/api/trade2/data/stats`,
-      downloadController.signal,
+      {
+        signal: downloadController.signal,
+      },
     );
+    const resText = await response.text();
     const tradeStatsProcessingTime = performance.now();
+
+    const rawStatsData = JSON.parse(resText) as {
+      result: Array<{ id: string; entries: TradeStat[] }>;
+    };
 
     const outStatData: Map<string, { [type: string]: string[] }> = new Map();
     const statDataSet = new Set<string>();
 
-    for (const { id: modType, entries } of rawStatsData) {
+    for (const { id: modType, entries } of rawStatsData.result) {
       for (const { id: statId, text: matcher } of entries) {
         let modMap = outStatData.get(matcher);
 
@@ -147,16 +99,23 @@ export const useTradeData = createGlobalState(() => {
       throw new Error("download controller not initialized");
     }
 
-    const rawItemData = await loadTradeResult<{ entries: TradeItem[] }>(
+    const response = await Host.proxy(
       // don't use `getTradeEndpoint` since we want ref items, not translated
       `www.pathofexile.com/api/trade2/data/items`,
-      downloadController.signal,
+      {
+        signal: downloadController.signal,
+      },
     );
+    const resText = await response.text();
     const tradeItemsProcessingTime = performance.now();
+
+    const rawItemData = JSON.parse(resText) as {
+      result: Array<{ entries: TradeItem[] }>;
+    };
 
     const outItemData = new Set<string>();
 
-    for (const category of rawItemData) {
+    for (const category of rawItemData.result) {
       for (const { type, text } of category.entries) {
         if (type) {
           outItemData.add(type);

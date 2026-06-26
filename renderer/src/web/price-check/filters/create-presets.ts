@@ -6,8 +6,8 @@ import {
 import { sumStatsByModType } from "@/parser/modifiers";
 import { ItemCategory, ItemRarity, ParsedItem } from "@/parser";
 import type { FilterPreset } from "./interfaces";
-import { PriceCheckWidget } from "@/web/overlay/widgets";
 import { hasCraftingValue, likelyFinishedItem } from "./common";
+import { createUniquePresets, PRESET_UNIQUES } from "./create-unique-filters";
 
 const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V"];
 
@@ -28,10 +28,10 @@ export function createPresets(
     searchStatRange: number;
     useEn: boolean;
     defaultAllSelected: boolean;
-    autoFillEmptyAugmentSockets: PriceCheckWidget["autoFillEmptyRuneSockets"];
   },
 ): { presets: FilterPreset[]; active: string } {
-  if (item.info.refName === "Expedition Logbook") {
+  // logbooks aren't real anymore
+  if (item.info.refName === "logbook here") {
     return {
       active: ROMAN_NUMERALS[0],
       presets: item.logbookAreaMods!.map<FilterPreset>((area, idx) => ({
@@ -43,20 +43,20 @@ export function createPresets(
   }
 
   if (
-    (!item.info.craftable && item.rarity !== ItemRarity.Unique) ||
     item.isUnidentified ||
     item.rarity === ItemRarity.Normal ||
-    (item.category === ItemCategory.Flask &&
+    (!item.info.craftable && item.rarity !== ItemRarity.Unique) ||
+    ((item.category === ItemCategory.Flask ||
+      item.category === ItemCategory.Relic ||
+      item.category === ItemCategory.Tincture ||
+      item.category === ItemCategory.MemoryLine ||
+      item.category === ItemCategory.Invitation ||
+      item.category === ItemCategory.HeistContract ||
+      item.category === ItemCategory.HeistBlueprint ||
+      item.category === ItemCategory.Sentinel ||
+      item.category === ItemCategory.Tablet ||
+      item.category === ItemCategory.Wombgift) &&
       item.rarity !== ItemRarity.Unique) ||
-    (item.category === ItemCategory.Relic &&
-      item.rarity !== ItemRarity.Unique) ||
-    item.category === ItemCategory.Tincture ||
-    item.category === ItemCategory.MemoryLine ||
-    item.category === ItemCategory.Invitation ||
-    item.category === ItemCategory.HeistContract ||
-    item.category === ItemCategory.HeistBlueprint ||
-    item.category === ItemCategory.Sentinel ||
-    item.category === ItemCategory.Tablet ||
     (item.category === ItemCategory.Currency && item.trials?.numberOfTrials)
   ) {
     return {
@@ -69,6 +69,10 @@ export function createPresets(
         },
       ],
     };
+  }
+
+  if (PRESET_UNIQUES.has(item.info.refName)) {
+    return createUniquePresets(item, opts);
   }
 
   // TODO: pseudo change here

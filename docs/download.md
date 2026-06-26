@@ -8,13 +8,13 @@ import { useData } from 'vitepress'
 const { theme } = useData()
 </script>
 
-This fork targets KDE Plasma Wayland with Path of Exile 2 running in a Wayland desktop session.
+This fork targets KDE Plasma Wayland with Path of Exile 2 running in a Wayland desktop session. App behavior follows upstream Exiled Exchange 2; this repository replaces the runtime host with a native Qt/KDE host.
 
 | Build target | Automatic updates | Startup time |
 | ------------ | ----------------- | ------------ |
 | Native Qt/KDE host built from source | No | Native host startup |
 
-Latest version is <span class="bg-gray-100 border rounded px-1">{{ theme.appVersion }}</span>
+Upstream app baseline is <span class="bg-gray-100 border rounded px-1">{{ theme.appVersion }}</span>.
 
 ---
 

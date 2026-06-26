@@ -1,6 +1,6 @@
 import { computed, shallowRef, readonly } from "vue";
 import { createGlobalState } from "@vueuse/core";
-import { AppConfig, poeWebApi, saveConfig } from "@/web/Config";
+import { AppConfig, poeWebApi } from "@/web/Config";
 import { Host } from "./IPC";
 
 // pc-ggg, pc-garena
@@ -70,7 +70,6 @@ export const useLeagues = createGlobalState(() => {
           const STANDARD = 0;
           selectedId.value = tradeLeagues.value[STANDARD].id;
         }
-        saveConfig();
       }
     } catch (e) {
       error.value = (e as Error).message;

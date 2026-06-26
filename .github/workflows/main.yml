@@ -11,13 +11,25 @@ on:
       - README.md
 
 jobs:
-  renderer:
-    runs-on: ubuntu-latest
+  native-linux:
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
     - uses: actions/setup-node@v6
       with:
         node-version: 24
+    - name: Install native build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          qt6-base-dev \
+          qt6-base-dev-tools \
+          qt6-webengine-dev \
+          libkf6coreaddons-dev \
+          libkf6globalaccel-dev \
+          libkf6windowsystem-dev \
+          liblayershellqtinterface-dev
     - run: npm ci
       working-directory: ./renderer
     - run: npm run make-index-files
@@ -26,31 +38,12 @@ jobs:
       working-directory: ./renderer
     - run: npm run build
       working-directory: ./renderer
+    - run: qmake6 exiled-exchange-native.pro -o Makefile
+      working-directory: ./native
+    - run: make -j"$(nproc)"
+      working-directory: ./native
     - uses: actions/upload-artifact@v7
       with:
-        name: renderer-dist
-        path: ./renderer/dist
-        retention-days: 1
-
-  package:
-    needs: renderer
-    runs-on: ubuntu-22.04
-    steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v6
-      with:
-        node-version: 24
-    - uses: actions/download-artifact@v8
-      with:
-        name: renderer-dist
-        path: ./renderer/dist
-    - run: npm ci
-      working-directory: ./main
-    - run: npm run build
-      working-directory: ./main
-    - run: npm run package "--" --linux AppImage -p onTagOrDraft
-      working-directory: ./main
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    - name: Hash
-      run: cat ./main/dist/latest-linux.yml
+        name: exiled-exchange-native-linux
+        path: ./native/exiled-exchange-native
+        retention-days: 7

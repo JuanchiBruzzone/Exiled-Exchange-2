@@ -5,7 +5,7 @@ This fork has two primary parts:
 1. `renderer/`: upstream Exiled Exchange 2 Vue UI, parser, trade search, and settings.
 2. `native/`: Linux/KDE Wayland Qt host that replaces the Electron `main/` process for this fork.
 
-Keep renderer changes close to upstream unless the native host requires a small integration point. The goal is upstream behavior with a native Linux Wayland host, not a separate product.
+Keep non-native code the same as upstream unless the native host requires a small integration point. The goal is upstream behavior with a native Linux Wayland host, not a separate product.
 
 ## Native Development Flow
 
@@ -59,7 +59,17 @@ git remote add upstream https://github.com/Kvan7/Exiled-Exchange-2.git
 git fetch upstream
 ```
 
-When upstream changes overlap with the native fork, prefer the upstream renderer implementation and keep native-specific changes in `native/`.
+When upstream changes overlap with the native fork, prefer upstream for `renderer/`, `ipc/`, parser, data, specs, and trade behavior. Keep native-specific changes in `native/` and fork-specific docs/build scripts.
+
+Before finishing an upstream sync, these comparisons should be clean:
+
+```shell
+diff -qr /tmp/exiled-upstream/renderer/src renderer/src
+diff -qr /tmp/exiled-upstream/renderer/specs renderer/specs
+diff -q /tmp/exiled-upstream/ipc/types.ts ipc/types.ts
+```
+
+The upstream Electron `main/` tree is intentionally absent in this fork. Do not reintroduce it unless this repository starts shipping the cross-platform Electron host again.
 
 ## Formatting
 

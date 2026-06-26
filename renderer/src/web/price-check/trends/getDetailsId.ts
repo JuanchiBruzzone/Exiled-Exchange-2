@@ -1,6 +1,6 @@
 import { ParsedItem, ItemRarity, ItemCategory } from "@/parser";
 import { floorToBracket } from "../filters/create-item-filters";
-import { ACCESSORY, ARMOUR, WEAPON } from "@/parser/meta";
+import { ACCESSORY, ARMOUR, GEM, WEAPON } from "@/parser/meta";
 import { TRADE_TAG_TO_REF } from "@/assets/data";
 
 export function getCurrencyDetailsId(id: string) {
@@ -36,7 +36,7 @@ export function isValuableBasetype(item: ParsedItem): boolean {
 }
 
 export function getDetailsId(item: ParsedItem) {
-  if (item.category === ItemCategory.Gem) {
+  if (item.category && GEM.has(item.category)) {
     return forSkillGem(item);
   }
   if (item.category === ItemCategory.Map) {
@@ -53,6 +53,13 @@ export function getDetailsId(item: ParsedItem) {
   }
   if (item.rarity === ItemRarity.Unique) {
     return forUniqueItem(item);
+  }
+  if (item.category === ItemCategory.Tablet) {
+    return {
+      ns: item.info.namespace,
+      name: item.info.refName,
+      variant: variant([item.rarity ? item.rarity.toString() : ""]),
+    };
   }
   if (isValuableBasetype(item)) {
     return forBasetype(item);

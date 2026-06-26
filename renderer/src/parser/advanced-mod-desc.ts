@@ -25,6 +25,7 @@ export interface ModifierInfo {
   rank?: number;
   tags: string[];
   rollIncr?: number;
+  addedIncr?: boolean;
   hybridWithRef?: Set<string>;
 }
 
@@ -76,16 +77,45 @@ export function parseModInfoLine(
         .groups!.type.slice(_$.FRACTURED_MODIFIER.length)
         .trim();
       type = ModifierType.Fractured;
-    } else if (match.groups!.type.startsWith(_$.DESECRATED_MODIFIER)) {
+    }
+    // mostly for spanish
+    else if (match.groups!.type2?.startsWith(_$.FRACTURED_MODIFIER)) {
+      match.groups!.type2 = match
+        .groups!.type2.slice(_$.FRACTURED_MODIFIER.length)
+        .trim();
+      type = ModifierType.Fractured;
+    }
+
+    if (match.groups!.type.startsWith(_$.DESECRATED_MODIFIER)) {
       match.groups!.type = match
         .groups!.type.slice(_$.DESECRATED_MODIFIER.length)
         .trim();
-      type = ModifierType.Desecrated;
+      if (type !== ModifierType.Fractured) {
+        type = ModifierType.Desecrated;
+      }
     } else if (match.groups!.type.startsWith(_$.CRAFTED_MODIFIER)) {
       match.groups!.type = match
         .groups!.type.slice(_$.CRAFTED_MODIFIER.length)
         .trim();
-      type = ModifierType.Crafted;
+      if (type !== ModifierType.Fractured) {
+        type = ModifierType.Crafted;
+      }
+    }
+    // mostly for spanish
+    else if (match.groups!.type2?.startsWith(_$.DESECRATED_MODIFIER)) {
+      match.groups!.type2 = match
+        .groups!.type2.slice(_$.DESECRATED_MODIFIER.length)
+        .trim();
+      if (type !== ModifierType.Fractured) {
+        type = ModifierType.Desecrated;
+      }
+    } else if (match.groups!.type2?.startsWith(_$.CRAFTED_MODIFIER)) {
+      match.groups!.type2 = match
+        .groups!.type2.slice(_$.CRAFTED_MODIFIER.length)
+        .trim();
+      if (type !== ModifierType.Fractured) {
+        type = ModifierType.Crafted;
+      }
     }
 
     switch (match.groups!.type) {
@@ -95,11 +125,16 @@ export function parseModInfoLine(
       case _$.SUFFIX_MODIFIER:
         generation = "suffix";
         break;
+      case _$.CORRUPTED_MODIFIER:
       case _$.CORRUPTED_IMPLICIT:
         generation = "corrupted";
+        type = ModifierType.Enchant;
         break;
       case _$.IMPLICIT_MODIFIER:
         type = ModifierType.Implicit;
+        break;
+      case _$.ENCHANT_MODIFIER:
+        type = ModifierType.Enchant;
         break;
       case _$.VAAL_UNIQUE_MODIFIER:
         generation = "mutated";

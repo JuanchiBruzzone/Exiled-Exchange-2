@@ -5,7 +5,9 @@
 
 Native Linux/Wayland fork of [Exiled Exchange 2](https://github.com/Kvan7/Exiled-Exchange-2) for Path of Exile 2.
 
-This fork keeps the renderer and price-checking behavior aligned with upstream Exiled Exchange 2, while replacing the Electron host path with a native Qt/KDE host for Linux Wayland. Use upstream if you need the normal cross-platform Electron app.
+This fork keeps the upstream app behavior intact and adds a native Qt/KDE host for Linux Wayland. The renderer, parser, trade logic, data, specs, and shared IPC types are kept aligned with upstream; native Linux behavior lives in `native/`.
+
+Use upstream if you need the normal cross-platform Electron app. This fork intentionally does not keep the Electron `main/` tree because the native Qt/KDE host replaces that runtime.
 
 ## Target Environment
 
@@ -50,7 +52,7 @@ Config is saved by the native host under Qt's app config location for `exiled-ex
 
 ## Keeping Upstream Behavior
 
-The intent is to keep non-native app behavior as close to upstream as possible. When upstream fixes parser, trade-site, or renderer behavior, port those changes directly and keep native-specific changes isolated under `native/` or clearly marked Linux host integration code.
+The intent is to keep non-native app behavior the same as upstream. Parser, trade-site, renderer, data, specs, and shared IPC changes should come from upstream directly. Native-specific platform behavior should stay isolated under `native/` and in the small fork docs/build scripts.
 
 Suggested remote:
 
@@ -59,7 +61,13 @@ git remote add upstream https://github.com/Kvan7/Exiled-Exchange-2.git
 git fetch upstream
 ```
 
-Then compare and port intentionally, especially for files under `renderer/src/web/price-check`.
+Then compare and port intentionally. The expected fork-specific areas are:
+
+- `native/`
+- `README.md`, `DEVELOPING.md`, and native Linux docs
+- `testUpdate.sh`
+
+Everything else should be treated as upstream-owned unless there is a specific reason to diverge. The upstream Electron `main/` tree is intentionally omitted from this fork.
 
 ## Thanks
 

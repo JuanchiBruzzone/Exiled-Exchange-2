@@ -8,6 +8,7 @@ export interface LibraryWidget extends Widget {
   anchor: Anchor;
   logItemKey: string | null;
   libraryOutputPath: string | null;
+  selectedProfile: string;
   profiles: Record<string, ColumnOpts>;
 }
 
@@ -17,6 +18,7 @@ export interface ShortMod {
   roll: Array<number | -999>;
   ref: string[];
   type: string;
+  generation?: string;
 }
 export interface ColumnOpts {
   refName: true;
@@ -38,6 +40,7 @@ export interface ColumnOpts {
     roll: boolean;
     ref: boolean;
     type: boolean;
+    generation: boolean;
   };
 }
 
@@ -53,7 +56,8 @@ function modFilter(mod: ParsedModifier, keep: ColumnOpts["keep"]) {
       mod.info.generation === "mutated" ||
       // Should be redundant with prefix/suffix
       mod.info.type === ModifierType.Desecrated ||
-      mod.info.type === ModifierType.Fractured)
+      mod.info.type === ModifierType.Fractured ||
+      mod.info.type === ModifierType.Crafted)
   ) {
     return true;
   }
@@ -71,7 +75,7 @@ function modFilter(mod: ParsedModifier, keep: ColumnOpts["keep"]) {
 
 export function buildCsvString(
   item: ParsedItem,
-  sessionType: "chaos",
+  sessionType: string,
   addedMods: ParsedModifier[],
   removedMods: ParsedModifier[],
   opts: { columnOpts: ColumnOpts },
@@ -127,7 +131,7 @@ export function buildCsvString(
   return err("sessionType not supported");
 }
 
-export function getHeader(sessionType: "chaos") {
+export function getHeader(sessionType: string) {
   switch (sessionType) {
     case "chaos":
       return ok("base,ilvl,rarity,sockets,mods,addedMods,removedMods");
@@ -169,23 +173,14 @@ export function diffItem(curr: ParsedItem, prev: ParsedItem | null) {
 
 function modToShortMod(mod: ParsedModifier, opts: ColumnOpts): ShortMod {
   if (!opts) throw new Error("ColumnOpts is null");
-  let type: ShortMod["type"];
-  if (
-    mod.info.generation &&
-    mod.info.generation !== "suffix" &&
-    mod.info.generation !== "prefix"
-  ) {
-    type = mod.info.generation;
-  } else {
-    type = mod.info.type;
-  }
 
   return {
     name: mod.info.name,
     tier: mod.info.tier,
     roll: mod.stats.map((s) => s.roll?.value ?? -999),
     ref: mod.stats.map((s) => s.stat.ref),
-    type,
+    type: mod.info.type,
+    generation: mod.info.generation,
   };
 }
 
@@ -194,7 +189,6 @@ function arrayToCsvString(arr: ShortMod[]) {
   return `"${json.replaceAll("'", "\\'").replaceAll('"', "'")}"`;
 }
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const __testExports = {
+export const testExports = {
   modFilter,
 };

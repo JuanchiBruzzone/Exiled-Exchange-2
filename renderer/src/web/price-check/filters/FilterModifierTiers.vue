@@ -49,6 +49,7 @@ export default defineComponent({
           (filter.tag === FilterTag.Explicit ||
             filter.tag === FilterTag.Desecrated ||
             filter.tag === FilterTag.Fractured ||
+            filter.tag === FilterTag.Crafted ||
             filter.tag === FilterTag.Pseudo ||
             filter.tag === FilterTag.Property) &&
           item.category !== ItemCategory.Jewel &&

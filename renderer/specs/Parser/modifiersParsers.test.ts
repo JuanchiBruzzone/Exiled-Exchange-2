@@ -1,4 +1,4 @@
-import { __testExports } from "@/parser/Parser";
+import { testExports } from "@/parser/Parser";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setupTests } from "@specs/vitest.setup";
 import {
@@ -16,6 +16,7 @@ import {
 } from "./items";
 import { init } from "@/assets/data";
 import { ItemCategory, ItemRarity, ParsedItem } from "@/parser";
+import { ModifierType } from "@/parser/modifiers";
 
 describe("[e2e] parseModifiers", () => {
   beforeEach(async () => {
@@ -37,7 +38,7 @@ describe("[e2e] parseModifiers", () => {
   ])(
     "%#, Each mod section is recognized",
     (testItem: TestItem, modifierSections: number[]) => {
-      const sections = __testExports.itemTextToSections(testItem.rawText);
+      const sections = testExports.itemTextToSections(testItem.rawText);
       const parsedItem: ParsedItem = {
         rarity: testItem.rarity,
         category: testItem.category,
@@ -53,7 +54,7 @@ describe("[e2e] parseModifiers", () => {
       };
 
       modifierSections.forEach((section) => {
-        const res = __testExports.parseModifiers(sections[section], parsedItem);
+        const res = testExports.parseModifiers(sections[section], parsedItem);
         expect(res).toBe("SECTION_PARSED");
       });
     },
@@ -130,7 +131,7 @@ describe("[e2e] parseModifiers", () => {
       section: number,
       expectedCount: number,
     ) => {
-      const sections = __testExports.itemTextToSections(testItem.rawText);
+      const sections = testExports.itemTextToSections(testItem.rawText);
       const parsedItem: ParsedItem = {
         rarity: testItem.rarity,
         category: testItem.category,
@@ -145,7 +146,7 @@ describe("[e2e] parseModifiers", () => {
         rawText: undefined!,
       };
 
-      const res = __testExports.parseModifiers(sections[section], parsedItem);
+      const res = testExports.parseModifiers(sections[section], parsedItem);
       expect(res).toBe("SECTION_PARSED");
       expect(parsedItem.newMods.length).toBe(expectedCount);
       expect(parsedItem.unknownModifiers.length).toBe(0);
@@ -179,7 +180,7 @@ Gain 21(21-27) Mana per enemy killed
 18(17-19)% increased Attack Speed
 `;
 
-    const res = __testExports.parseModifiers(section.split("\n"), parsedItem);
+    const res = testExports.parseModifiers(section.split("\n"), parsedItem);
     expect(res).toBe("SECTION_PARSED");
   });
 
@@ -188,16 +189,22 @@ Gain 21(21-27) Mana per enemy killed
 Loads an additional bolt
 `;
 
-    const res = __testExports.parseModifiers(section.split("\n"), parsedItem);
+    const res = testExports.parseModifiers(section.split("\n"), parsedItem);
     expect(res).toBe("SECTION_PARSED");
+    expect(parsedItem.newMods.length).toBe(1);
+    expect(parsedItem.unknownModifiers.length).toBe(0);
+    expect(parsedItem.newMods[0].info.type).toBe(ModifierType.Implicit);
   });
 
   it("Should parse granted skill modifiers", () => {
     const section = `Grants Skill: Level 18 Cackling Companions
 `;
 
-    const res = __testExports.parseModifiers(section.split("\n"), parsedItem);
+    const res = testExports.parseModifiers(section.split("\n"), parsedItem);
     expect(res).toBe("SECTION_PARSED");
+    expect(parsedItem.newMods.length).toBe(1);
+    expect(parsedItem.unknownModifiers.length).toBe(0);
+    expect(parsedItem.newMods[0].info.type).toBe(ModifierType.Skill);
   });
 
   it("Should parse augment modifiers", () => {
@@ -205,15 +212,30 @@ Loads an additional bolt
 Gain 24 Mana per enemy killed (rune)
 `;
 
-    const res = __testExports.parseModifiers(section.split("\n"), parsedItem);
+    const res = testExports.parseModifiers(section.split("\n"), parsedItem);
     expect(res).toBe("SECTION_PARSED");
+    expect(parsedItem.newMods.length).toBe(1);
+    expect(parsedItem.unknownModifiers.length).toBe(0);
+    expect(parsedItem.newMods[0].info.type).toBe(ModifierType.Augment);
   });
 
-  it("Should parse rune modifiers", () => {
+  it("Should parse enchant modifiers", () => {
     const section = `45% increased Elemental Damage with Attacks (enchant)
 `;
 
-    const res = __testExports.parseModifiers(section.split("\n"), parsedItem);
+    const res = testExports.parseModifiers(section.split("\n"), parsedItem);
     expect(res).toBe("SECTION_PARSED");
+  });
+
+  it("Should parse new enchant modifiers", () => {
+    const section = `{ Enhancement }
+Allocates Core of the Guardian — Unscalable Value
+`;
+
+    const res = testExports.parseModifiers(section.split("\n"), parsedItem);
+    expect(res).toBe("SECTION_PARSED");
+    expect(parsedItem.newMods.length).toBe(1);
+    expect(parsedItem.unknownModifiers.length).toBe(0);
+    expect(parsedItem.newMods[0].info.type).toBe(ModifierType.Enchant);
   });
 });

@@ -112,8 +112,8 @@
     "rarity_magic": "Rarity: Magic",
     "map_revives": "Revives Available: {0}",
     "map_pack_size": "Monster Pack Size: +{0}%",
-    "map_magic_monsters": "Magic Monsters: +{0}%",
-    "map_rare_monsters": "Rare Monsters: +{0}%",
+    "map_magic_monsters": "Monster Effectiveness: +{0}%",
+    "map_rare_monsters": "Monster Rarity: +{0}%",
     "map_drop_chance": "Waystone Drop Chance: +{0}%",
     "map_item_rarity": "Item Rarity: +{0}%",
     "map_gold": "Gold Found: +{0}%",
@@ -121,7 +121,10 @@
     "ascendancy_points": "Points: {0}",
     "victorious": "Victorious",
     "cowardly": "Cowardly",
-    "deadly": "Deadly"
+    "deadly": "Deadly",
+    "wrong_language": "POE2 language doesn't match EE2",
+    "wrong_language_help": "POE2 is set to {0} but EE2 is currently set to {1}",
+    "duplicates": "Duplicates: {0}"
   },
   "item_category": {
     "prop": "Category: {0}",
@@ -163,7 +166,7 @@
     "accessory_trinket": "Trinket",
     "sanctum_relic": "Sanctum Relic",
     "tincture": "Tincture",
-    "azmeri_charm": "Charm",
+    "flask_charm": "Charm",
     "weapon_crossbow": "Crossbow",
     "armour_focus": "Focus",
     "weapon_spear": "Spear",
@@ -198,6 +201,7 @@
     "hide_not_max_level": "Non max level granted skills rarely add value",
     "hide_for_map": "Most map modifiers have no value",
     "hide_revives": "Select only if not 0 and don't want to exalt it?",
+    "hide_total_all_res": "Only adds small value compared to total res, unless high roll",
     "tag_implicit": "implicit",
     "tag_fractured": "fractured",
     "tag_crafted": "crafted",
@@ -427,9 +431,12 @@
     "always_show_tier": "Always show tier",
     "remember_ratio": "Remember currency ratio",
     "remember_listing": "Remember listing type",
+    "remember_listing_note": "You probably don't want to enable listing type, here as an option just for people who know what they are doing.",
     "open_editor_above": "Open rune socket selector upwards",
     "core_currency": "Primary base currency:",
-    "show_volume": "Show Currency Exchange volume per hour:"
+    "show_volume": "Show Currency Exchange volume per hour:",
+    "warn_advanced": "Advanced settings, don't change unless you are experiencing issues",
+    "initial_delay": "Initial clipboard check delay(after copy-item keybind is pressed)"
   },
   "poe2_new": {
     "beta_warning": "This is in BETA for POE2, things will not work always as expected.",

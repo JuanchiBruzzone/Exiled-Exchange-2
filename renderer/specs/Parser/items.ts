@@ -2,6 +2,7 @@ import { BaseType } from "@/assets/data";
 import { ItemCategory, ItemInfluence, ItemRarity, ParsedItem } from "@/parser";
 import { ParsedModifier } from "@/parser/advanced-mod-desc";
 import { StatCalculated, ModifierType } from "@/parser/modifiers";
+import { EditorItem } from "@/parser/ParsedItem";
 
 export class TestItem implements ParsedItem {
   // #region ParsedItem
@@ -30,6 +31,8 @@ export class TestItem implements ParsedItem {
   mapDropChance?: number;
   mapMagicMonsters?: number;
   mapRareMonsters?: number;
+  mapMonsterRarity?: number;
+  mapEffectiveness?: number;
   gemLevel?: number | undefined;
   areaLevel?: number | undefined;
   talismanTier?: number | undefined;
@@ -39,6 +42,7 @@ export class TestItem implements ParsedItem {
         empty: number;
         current: number;
         normal: number;
+        augments: Array<EditorItem | null>;
       }
     | undefined;
 
@@ -116,6 +120,33 @@ export class TestItem implements ParsedItem {
   constructor(text: string) {
     this.rawText = text;
   }
+}
+
+function createEditorItem(
+  refName: string,
+  displayString: string,
+  value: number,
+): EditorItem {
+  return {
+    name: refName,
+    refName,
+    icon: "%NOT_FOUND%",
+    displayString,
+    stats: [
+      {
+        categories: [],
+        string: displayString,
+        values: [value],
+      },
+    ],
+    baseItem: {
+      name: refName,
+      refName,
+      namespace: "ITEM",
+      icon: "%NOT_FOUND%",
+      tags: [],
+    },
+  };
 }
 
 // #region NormalItem
@@ -390,6 +421,48 @@ UncutSupportGem.info = {
 UncutSupportGem.sectionCount = 3;
 // #endregion UncutSupportGem
 
+// #region MetaSkillGem
+export const MetaSkillGem = new TestItem(`Rarity: Gem
+Mirage Archer
+--------
+Buff, Persistent, Trigger, Duration, Meta
+Level: 14
+Reservation: 60 Spirit
+--------
+Requires: Level 58, 103 Dex
+Requires: Spear, Bow, Crossbow
+--------
+Sockets: G G G G
+--------
+While active, dodge rolling will create a Mirage that uses socketed ranged Attacks for a short duration, then vanish.
+--------
+Support
+--------
+Mirages deal 30% less Damage
+Socketed Skills cannot consume Charges
+--------
+Mirage
+--------
+Cooldown Time: 10.00s
+--------
+Mirage duration is 5.7 seconds
+--------
+Place one or more Skill Gems into this Meta Gem's sockets in the Skills Panel. The socketed Skills will be incorporated into the Meta Gem's effect.
+`);
+MetaSkillGem.category = ItemCategory.Gem;
+MetaSkillGem.gemLevel = 14;
+MetaSkillGem.info = {
+  name: "Mirage Archer",
+  refName: "Mirage Archer",
+  namespace: "GEM",
+  icon: "test",
+  tags: [],
+  craftable: { category: ItemCategory.Gem },
+};
+
+MetaSkillGem.sectionCount = 11;
+// #endregion MetaSkillGem
+
 // #region HighDamageRareItem
 export const HighDamageRareItem = new TestItem(`Item Class: Crossbows
 Rarity: Rare
@@ -454,6 +527,10 @@ HighDamageRareItem.augmentSockets = {
   empty: 0,
   current: 2,
   normal: 2,
+  augments: [
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+  ],
 };
 // #endregion HighDamageRareItem
 
@@ -511,6 +588,23 @@ ArmourHighValueRareItem.augmentSockets = {
   empty: 0,
   current: 3,
   normal: 2,
+  augments: [
+    createEditorItem(
+      "Greater Iron Rune",
+      "18% increased Armour, Evasion and Energy Shield",
+      18,
+    ),
+    createEditorItem(
+      "Greater Iron Rune",
+      "18% increased Armour, Evasion and Energy Shield",
+      18,
+    ),
+    createEditorItem(
+      "Greater Iron Rune",
+      "18% increased Armour, Evasion and Energy Shield",
+      18,
+    ),
+  ],
 };
 ArmourHighValueRareItem.note = "~b/o 10 divine";
 // #endregion ArmourHighValueRareItem
@@ -685,7 +779,6 @@ Rarity: Rare
 Desolate Route
 Waystone (Tier 14)
 --------
-Waystone Tier: 14
 Revives Available: 2 (augmented)
 Pack Size: +34% (augmented)
 Rare Monsters: +28% (augmented)
@@ -708,6 +801,9 @@ Can be used in a Map Device, allowing you to enter a Map. Waystones can only be 
 RareMap.category = ItemCategory.Map;
 RareMap.rarity = ItemRarity.Normal;
 RareMap.mapTier = 14;
+RareMap.info = {
+  map: { tier: RareMap.mapTier },
+} as unknown as ParsedItem["info"];
 RareMap.mapRevives = 2;
 RareMap.mapPackSize = 34;
 RareMap.mapRareMonsters = 28;
@@ -721,13 +817,15 @@ Rarity: Rare
 Blasted Control
 Waystone (Tier 16)
 --------
-Waystone Tier: 16
 Revives Available: 0 (augmented)
 Pack Size: +20% (augmented)
 Magic Monsters: +30% (augmented)
 Rare Monsters: +71% (augmented)
 Waystone Drop Chance: +90% (augmented)
 Item Rarity: +17% (augmented)
+Monster Rarity: +32% (augmented)
+Item Rarity: +17% (augmented)
+Monster Effectiveness: +45% (augmented)
 --------
 Item Level: 79
 --------
@@ -752,12 +850,17 @@ Corrupted
 RareMapFakeAllProps.category = ItemCategory.Map;
 RareMapFakeAllProps.rarity = ItemRarity.Normal;
 RareMapFakeAllProps.mapTier = 16;
+RareMapFakeAllProps.info = {
+  map: { tier: RareMapFakeAllProps.mapTier },
+} as unknown as ParsedItem["info"];
 RareMapFakeAllProps.mapRevives = 0;
 RareMapFakeAllProps.mapPackSize = 20;
 RareMapFakeAllProps.mapMagicMonsters = 30;
 RareMapFakeAllProps.mapRareMonsters = 71;
 RareMapFakeAllProps.mapDropChance = 90;
 RareMapFakeAllProps.mapItemRarity = 17;
+RareMapFakeAllProps.mapMonsterRarity = 32;
+RareMapFakeAllProps.mapEffectiveness = 45;
 RareMapFakeAllProps.sectionCount = 6;
 // #endregion RareMapFakeAllProps
 
@@ -829,6 +932,10 @@ FracturedItem.augmentSockets = {
   empty: 0,
   current: 2,
   normal: 2,
+  augments: [
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+  ],
 };
 // #endregion FracturedItem
 
@@ -900,6 +1007,10 @@ FracturedItemNoModMarked.augmentSockets = {
   empty: 0,
   current: 2,
   normal: 2,
+  augments: [
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+  ],
 };
 // #endregion FracturedItemNoModMarked
 
@@ -1005,7 +1116,7 @@ Item Level: 80
 45% increased Elemental Damage with Attacks (enchant)
 --------
 18% increased Physical Damage (rune)
-Gain 24 Mana per enemy killed (rune)
+Gain 30 Mana per enemy killed (rune)
 --------
 { Implicit Modifier — Attack }
 Loads an additional bolt
@@ -1059,6 +1170,14 @@ ItemAllTheModifierTypes.augmentSockets = {
   empty: 0,
   current: 2,
   normal: 2,
+  augments: [
+    createEditorItem("Greater Iron Rune", "18% increased Physical Damage", 18),
+    createEditorItem(
+      "Greater Inspiration Rune",
+      "Gain 30 Mana per enemy killed",
+      30,
+    ),
+  ],
 };
 ItemAllTheModifierTypes.isCorrupted = true;
 ItemAllTheModifierTypes.isFractured = true;
@@ -1115,6 +1234,7 @@ SpectreIncSpirit.augmentSockets = {
   empty: 0,
   current: 1,
   normal: 1,
+  augments: [null],
 };
 
 // #endregion SpectreIncSpirit
@@ -1174,3 +1294,42 @@ UnidentifiedTier.isUnidentified = true;
 UnidentifiedTier.unidentifiedTier = 4;
 
 // #endregion UnidentifiedTier
+
+// #region CharmQuality
+export const CharmQuality = new TestItem(`Item Class: Charms
+Rarity: Magic
+Sprouting Silver Charm of the Bountiful
+--------
+Quality: +14% (augmented)
+Lasts 3.40 (augmented) Seconds
+Consumes 20 of 60 (augmented) Charges on use
+Currently has 0 Charges
+Your speed is unaffected by Slows
+--------
+Requires: Level 37
+--------
+Item Level: 80
+--------
+{ Implicit Modifier }
+Used when you are affected by a Slow — Unscalable Value
+--------
+{ Prefix Modifier "Sprouting" (Tier: 5) — Charm, Life }
+Recover 106(96-130) Life when Used
+{ Suffix Modifier "of the Bountiful" (Tier: 3) }
+51(47-54)% increased Charges
+--------
+Used automatically when condition is met. Can only hold charges while in belt. Refill at Wells or by killing monsters.
+`);
+
+CharmQuality.category = ItemCategory.Charm;
+CharmQuality.rarity = ItemRarity.Magic;
+CharmQuality.itemLevel = 80;
+CharmQuality.quality = 14;
+
+CharmQuality.info.refName = "Silver Charm";
+CharmQuality.sectionCount = 7;
+CharmQuality.implicitCount = 1;
+CharmQuality.prefixCount = 1;
+CharmQuality.suffixCount = 1;
+
+// #endregion CharmQuality

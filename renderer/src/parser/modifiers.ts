@@ -33,9 +33,10 @@ export function sumStatsByModType(
         out.some(
           (merged) =>
             merged.stat.ref === statA.stat.ref &&
-            merged.type === modA.info.type &&
+            typesCanBeGrouped(merged.type, modA.info.type) &&
             // Multiple allocations should not be merged
-            (statA.stat.ref !== "Allocates #" ||
+            ((statA.stat.ref !== "Allocates #" &&
+              statA.stat.ref !== "Legacy of #") ||
               merged.sources.some(
                 (src) =>
                   src.stat.translation.string === statA.translation.string,
@@ -44,17 +45,21 @@ export function sumStatsByModType(
       ) {
         continue;
       }
-
+      let hasFractured = false;
       const sources = mods.reduce(
         (filtered, modB) => {
-          if (modB.info.type === modA.info.type) {
+          if (typesCanBeGrouped(modB.info.type, modA.info.type)) {
             const targetStat = modB.stats.find(
               (statB) =>
                 statB.stat.ref === statA.stat.ref &&
-                (statA.stat.ref !== "Allocates #" ||
+                ((statA.stat.ref !== "Allocates #" &&
+                  statA.stat.ref !== "Legacy of #") ||
                   statB.translation.string === statA.translation.string),
             );
             if (targetStat) {
+              if (modB.info.type === ModifierType.Fractured) {
+                hasFractured = true;
+              }
               const roll = (applyIncr(modB.info, targetStat) ?? targetStat)
                 .roll;
               filtered.push({
@@ -74,17 +79,36 @@ export function sumStatsByModType(
         [] as StatCalculated["sources"],
       );
 
-      out.push({ stat: statA.stat, type: modA.info.type, sources });
+      out.push({
+        stat: statA.stat,
+        type: hasFractured ? ModifierType.Fractured : modA.info.type,
+        sources,
+      });
     }
   }
 
   return out;
 }
 
+function typesCanBeGrouped(a: ModifierType, b: ModifierType) {
+  if (a === b) return true;
+  return EXPLICIT_MOD_TYPES.has(a) && EXPLICIT_MOD_TYPES.has(b);
+}
+
 export function statSourcesTotal(
   sources: StatSource[],
-  mode: "sum" | "max" = "sum",
+  mode: "sum" | "max" | "count" = "sum",
 ): StatRoll | undefined {
+  if (mode === "count") {
+    const count = sources.length;
+    return {
+      value: count,
+      min: count,
+      max: count,
+      option: !count ? undefined : sources[0].contributes?.option,
+    };
+  }
+
   const fn =
     mode === "sum"
       ? (a: number, b: number) => a + b
@@ -97,9 +121,10 @@ export function statSourcesTotal(
           sum.value = fn(sum.value, contributes.value);
           sum.min = fn(sum.min, contributes.min);
           sum.max = fn(sum.max, contributes.max);
+          sum.option = contributes.option;
           return sum;
         },
-        { value: 0, min: 0, max: 0 },
+        { value: 0, min: 0, max: 0, option: undefined } as StatRoll,
       );
 }
 
@@ -181,3 +206,17 @@ export enum ModifierType {
   Desecrated = "desecrated",
   Skill = "skill",
 }
+
+export const EXPLICIT_MOD_TYPES = new Set([
+  ModifierType.Explicit,
+  ModifierType.Fractured,
+  ModifierType.Veiled,
+  ModifierType.Desecrated,
+  ModifierType.Crafted,
+  ModifierType.Sanctum,
+]);
+
+export const INTERNAL_AUGMENT_TYPES = new Set([
+  ModifierType.Augment,
+  ModifierType.AddedAugment,
+]);

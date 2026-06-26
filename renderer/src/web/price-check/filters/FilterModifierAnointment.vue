@@ -3,10 +3,13 @@
     <template #item>
       <div class="flex">
         <img
-          v-for="icon in result.icons"
+          v-for="oil in result.oils"
           class="w-8 h-8"
+          :title="oil.name"
           :src="
-            icon === '%NOT_FOUND%' || icon === '' ? '/images/404.png' : icon
+            oil.icon === '%NOT_FOUND%' || oil.icon === ''
+              ? '/images/404.png'
+              : oil.icon
           "
         />
       </div>
@@ -55,7 +58,7 @@ export default defineComponent({
       }
 
       return {
-        icons: oils.map((item) => item!.icon),
+        oils: oils.map((item) => ({ icon: item!.icon, name: item!.name })),
         price: totalDiv != null ? autoCurrency(totalDiv) : undefined,
       };
     });

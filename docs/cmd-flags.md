@@ -19,5 +19,5 @@ You can change that as well.
 - `--no-updates` Disables automatic downloading of updates and, consequently,
 their installation.
 
-Since this tool is built on top of Electron/Chromium,
-it also inherits all [their command-line options](https://www.electronjs.org/docs/latest/api/command-line-switches).
+This native fork is hosted by Qt WebEngine instead of Electron. Electron-specific
+command-line switches only apply to upstream Exiled Exchange 2.
