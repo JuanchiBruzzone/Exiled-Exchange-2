@@ -28,6 +28,7 @@ Install the native runtime/build dependencies from your distro packages:
 - KDE Frameworks: `KGlobalAccel`, `KWindowSystem`, `KCoreAddons`
 - `LayerShellQt`
 - `ydotool`
+- `wl-clipboard`
 - `npm`, `make`, and a C++20 compiler for local builds
 
 Make sure `ydotoold` is running for your user/session before using hotkeys that copy item text or type chat commands.
