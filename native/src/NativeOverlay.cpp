@@ -98,9 +98,12 @@ void NativeOverlay::acceptInput() {
 
   m_hideTimer.stop();
   setWindowFlag(Qt::WindowTransparentForInput, false);
-  setAttribute(Qt::WA_ShowWithoutActivating, true);
-  configureLayerShell(QGuiApplication::screenAt(QCursor::pos()), false);
+  setAttribute(Qt::WA_ShowWithoutActivating, false);
+  configureLayerShell(QGuiApplication::screenAt(QCursor::pos()), true);
   show();
+  raise();
+  activateWindow();
+  m_view->setFocus();
   emit overlayModeChanged(true);
 }
 
@@ -114,10 +117,13 @@ void NativeOverlay::toggleInteractive() {
 
   m_interactive = true;
   applyInteractiveFlags();
+  setAttribute(Qt::WA_ShowWithoutActivating, false);
   positionNearCursor(QCursor::pos());
   configureLayerShell(QGuiApplication::screenAt(QCursor::pos()), true);
   show();
   raise();
+  activateWindow();
+  m_view->setFocus();
   emit overlayModeChanged(true);
 }
 
@@ -155,9 +161,8 @@ void NativeOverlay::applyInteractiveFlags() {
   setWindowFlag(Qt::Window, true);
   setWindowFlag(Qt::Tool, false);
   setWindowFlag(Qt::WindowStaysOnTopHint, true);
-  setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
+  setWindowFlag(Qt::WindowDoesNotAcceptFocus, false);
   setWindowFlag(Qt::WindowTransparentForInput, false);
-  setAttribute(Qt::WA_ShowWithoutActivating, true);
 }
 
 void NativeOverlay::keyPressEvent(QKeyEvent *event) {
@@ -173,9 +178,6 @@ void NativeOverlay::keyPressEvent(QKeyEvent *event) {
 
 void NativeOverlay::changeEvent(QEvent *event) {
   QWidget::changeEvent(event);
-  if (event->type() == QEvent::ActivationChange && m_interactive && !isActiveWindow()) {
-    emit focusGameRequested();
-  }
 }
 
 void NativeOverlay::configureLayerShell(QScreen *screen, bool interactive) {
@@ -201,8 +203,11 @@ void NativeOverlay::configureLayerShell(QScreen *screen, bool interactive) {
   layerWindow->setMargins({});
   layerWindow->setScreen(screen);
   layerWindow->setDesiredSize(screen != nullptr ? screen->geometry().size() : size());
-  layerWindow->setActivateOnShow(false);
-  layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+  layerWindow->setActivateOnShow(interactive);
+  layerWindow->setKeyboardInteractivity(
+    interactive
+        ? LayerShellQt::Window::KeyboardInteractivityOnDemand
+        : LayerShellQt::Window::KeyboardInteractivityNone);
   qWarning() << "[exiled-exchange-native] LayerShellQt configured interactive=" << interactive
              << "screen=" << (screen != nullptr ? screen->name() : QStringLiteral("<none>"));
 }
