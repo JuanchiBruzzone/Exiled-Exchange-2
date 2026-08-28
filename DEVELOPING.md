@@ -49,6 +49,7 @@ Run:
 - KDE Frameworks: `KGlobalAccel`, `KWindowSystem`, `KCoreAddons`
 - LayerShellQt
 - `ydotool` with `ydotoold` running
+- `wl-clipboard`
 
 ## Upstream Sync
 
